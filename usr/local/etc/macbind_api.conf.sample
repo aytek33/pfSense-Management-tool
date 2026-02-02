@@ -1,0 +1,16 @@
+# macbind_api.conf - Configuration for MAC Binding REST API
+#
+# Copy this file to /usr/local/etc/macbind_api.conf and configure
+#
+# Generate API key with: openssl rand -hex 32
+
+# Required: API key for authentication (32+ character hex string)
+api_key=GENERATE_WITH_openssl_rand_-hex_32
+
+# Optional: Comma-separated list of allowed IP addresses or CIDR ranges
+# Leave empty to allow all IPs (API key still required)
+# Example: allowed_ips=192.168.1.0/24,10.0.0.5
+allowed_ips=
+
+# Optional: Enable rate limiting (true/false, default: true)
+rate_limit_enabled=true

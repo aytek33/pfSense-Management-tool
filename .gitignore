@@ -1,0 +1,40 @@
+# Sensitive files
+*.conf
+api_key*
+credentials*
+.env
+
+# pfSense config exports (may contain sensitive data)
+*.xml
+firewalls.txt
+firewalls_ALL.txt
+
+# Backup directories
+BACKUPFILES/
+
+# Cursor IDE
+.cursor/
+
+# Logs
+*.log
+logs/
+
+# Database files (on pfSense)
+*.db
+*.json.backup
+*.csv.old*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.bak

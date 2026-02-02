@@ -1,0 +1,3183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pfSenseMANAGER XXXIII</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pfsense: {
+              primary: '#2563eb',
+              secondary: '#1e40af',
+              success: '#16a34a',
+              warning: '#ca8a04',
+              danger: '#dc2626'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .loading { opacity: 0.6; pointer-events: none; }
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    .status-online { color: #16a34a; }
+    .status-offline { color: #dc2626; }
+    .status-stale { color: #ca8a04; }
+    .status-unknown { color: #6b7280; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Navigation -->
+  <nav class="bg-pfsense-primary shadow-lg">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <span class="text-white text-xl font-bold">pfSenseMANAGER XXXIII</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button onclick="refreshData()" class="text-white hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">
+            <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+          <button onclick="syncAllFirewalls()" class="bg-pfsense-secondary text-white hover:bg-blue-800 px-4 py-2 rounded-md text-sm font-medium">
+            Sync All
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    <!-- Stats Cards -->
+    <div id="statsSection" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-500">Total Firewalls</p>
+            <p id="statTotalFirewalls" class="text-2xl font-bold text-gray-900">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-full">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-500">Online</p>
+            <p id="statOnlineFirewalls" class="text-2xl font-bold text-green-600">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-500">Total Bindings</p>
+            <p id="statTotalBindings" class="text-2xl font-bold text-gray-900">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-yellow-100 rounded-full">
+            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-500">Expiring (24h)</p>
+            <p id="statExpiringBindings" class="text-2xl font-bold text-yellow-600">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow mb-6">
+      <div class="border-b border-gray-200">
+        <nav class="flex -mb-px">
+          <button onclick="showTab('firewalls')" id="tabFirewalls" class="tab-btn border-b-2 border-pfsense-primary text-pfsense-primary px-6 py-4 text-sm font-medium">
+            Firewalls
+          </button>
+          <button onclick="showTab('bindings')" id="tabBindings" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-6 py-4 text-sm font-medium">
+            Bindings
+          </button>
+          <button onclick="showTab('backups')" id="tabBackups" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-6 py-4 text-sm font-medium">
+            Backups
+          </button>
+          <button onclick="showTab('logs')" id="tabLogs" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-6 py-4 text-sm font-medium">
+            Logs
+          </button>
+          <button onclick="showTab('vouchers')" id="tabVouchers" class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-6 py-4 text-sm font-medium">
+            Vouchers
+          </button>
+        </nav>
+      </div>
+
+      <!-- Firewalls Tab -->
+      <div id="firewallsTab" class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Managed Firewalls</h2>
+          <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-1">
+              <label for="firewallAutoRefresh" class="text-xs text-gray-500">Auto-refresh:</label>
+              <select id="firewallAutoRefresh" onchange="setFirewallAutoRefresh(this.value)" class="border rounded px-2 py-1 text-sm text-gray-700">
+                <option value="0">Off</option>
+                <option value="120000">2 min</option>
+                <option value="300000">5 min</option>
+                <option value="600000">10 min</option>
+                <option value="1800000">30 min</option>
+              </select>
+            </div>
+            <button onclick="refreshSystemInfo()" class="text-pfsense-primary hover:text-pfsense-secondary px-3 py-2 text-sm font-medium">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Refresh Metrics
+            </button>
+            <button onclick="showAddFirewallModal()" class="bg-pfsense-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-pfsense-secondary">
+              + Add Firewall
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('name')">Name <span id="sort-fw-name-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('status')">Status <span id="sort-fw-status-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('version')">Version <span id="sort-fw-version-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('uptime')">Uptime <span id="sort-fw-uptime-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('ntp')">NTP <span id="sort-fw-ntp-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('cpu')">CPU/RAM/Disk <span id="sort-fw-cpu-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortFirewalls('bindings')">Bindings <span id="sort-fw-bindings-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="firewallsTable" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Firewall Pagination Controls -->
+        <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
+          <div class="flex items-center space-x-2">
+            <label for="firewallRowsPerPage" class="text-sm text-gray-700">Rows per page:</label>
+            <select id="firewallRowsPerPage" onchange="changeFirewallRowsPerPage(this.value)" class="border rounded px-2 py-1 text-sm">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span id="firewallPaginationInfo" class="text-sm text-gray-700">Showing 0 - 0 of 0</span>
+            <nav class="flex items-center space-x-1">
+              <button onclick="goToFirewallPage('first')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="firewallFirstPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              </button>
+              <button onclick="goToFirewallPage('prev')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="firewallPrevPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <span id="firewallPageNumbers" class="flex items-center space-x-1"></span>
+              <button onclick="goToFirewallPage('next')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="firewallNextPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+              <button onclick="goToFirewallPage('last')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="firewallLastPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bindings Tab -->
+      <div id="bindingsTab" class="p-6 hidden">
+        <div class="flex justify-between items-center mb-4">
+          <div class="flex items-center space-x-4">
+            <h2 class="text-lg font-semibold text-gray-900">MAC Bindings</h2>
+            <input type="text" id="bindingSearch" placeholder="Search MAC, IP, or description..."
+              class="border rounded-md px-3 py-2 text-sm w-64" onkeyup="filterBindings()">
+            <select id="bindingFirewallFilter" class="border rounded-md px-3 py-2 text-sm" onchange="filterBindings()">
+              <option value="">All Firewalls</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-2">
+            <!-- Cleanup Trigger Countdown -->
+            <div class="flex items-center bg-gray-100 rounded-md px-3 py-2 text-sm">
+              <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span class="text-gray-600">Next auto-cleanup:</span>
+              <span id="cleanupCountdown" class="ml-1 font-mono font-medium text-orange-600">--:--</span>
+            </div>
+            <!-- Auto-refresh for Bindings -->
+            <div class="flex items-center space-x-1">
+              <label for="bindingsAutoRefresh" class="text-xs text-gray-500">Auto-refresh:</label>
+              <select id="bindingsAutoRefresh" onchange="setBindingsAutoRefresh(this.value)" class="border rounded px-2 py-1 text-sm text-gray-700">
+                <option value="0">Off</option>
+                <option value="120000">2 min</option>
+                <option value="300000" selected>5 min</option>
+                <option value="600000">10 min</option>
+                <option value="1800000">30 min</option>
+              </select>
+            </div>
+            <!-- Refresh Bindings Button -->
+            <button onclick="refreshAllBindings()" class="text-pfsense-primary hover:text-pfsense-secondary px-3 py-2 text-sm font-medium">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh Bindings
+            </button>
+            <button onclick="cleanupExpiredBindings()" class="bg-orange-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-600">
+              Cleanup Now
+            </button>
+            <button onclick="showAddBindingModal()" class="bg-pfsense-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-pfsense-secondary">
+              + Add Binding
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('firewall')">Firewall <span id="sort-bind-firewall-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('zone')">Zone <span id="sort-bind-zone-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('mac')">MAC Address <span id="sort-bind-mac-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('description')">Description <span id="sort-bind-description-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('action')">Action <span id="sort-bind-action-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('expires')">Expires <span id="sort-bind-expires-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBindings('status')">Status <span id="sort-bind-status-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="bindingsTable" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Binding Pagination Controls -->
+        <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
+          <div class="flex items-center space-x-2">
+            <label for="bindingRowsPerPage" class="text-sm text-gray-700">Rows per page:</label>
+            <select id="bindingRowsPerPage" onchange="changeBindingRowsPerPage(this.value)" class="border rounded px-2 py-1 text-sm">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span id="bindingPaginationInfo" class="text-sm text-gray-700">Showing 0 - 0 of 0</span>
+            <nav class="flex items-center space-x-1">
+              <button onclick="goToBindingPage('first')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="bindingFirstPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              </button>
+              <button onclick="goToBindingPage('prev')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="bindingPrevPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <span id="bindingPageNumbers" class="flex items-center space-x-1"></span>
+              <button onclick="goToBindingPage('next')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="bindingNextPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+              <button onclick="goToBindingPage('last')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="bindingLastPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backups Tab -->
+      <div id="backupsTab" class="p-6 hidden">
+        <div class="flex justify-between items-center mb-4">
+          <div class="flex items-center space-x-4">
+            <h2 class="text-lg font-semibold text-gray-900">Configuration Backups</h2>
+            <select id="backupFirewallFilter" class="border rounded-md px-3 py-2 text-sm" onchange="loadBackupHistory()">
+              <option value="">All Firewalls</option>
+            </select>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="backupAllFirewalls()" class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
+              Backup All
+            </button>
+          </div>
+        </div>
+        
+        <!-- Backup Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-purple-50 rounded-lg p-4">
+            <p class="text-sm text-purple-600">Total Backups</p>
+            <p id="statTotalBackups" class="text-xl font-bold text-purple-800">-</p>
+          </div>
+          <div class="bg-purple-50 rounded-lg p-4">
+            <p class="text-sm text-purple-600">Storage Used</p>
+            <p id="statBackupStorage" class="text-xl font-bold text-purple-800">-</p>
+          </div>
+          <div class="bg-purple-50 rounded-lg p-4">
+            <p class="text-sm text-purple-600">Last Backup</p>
+            <p id="statLastBackup" class="text-xl font-bold text-purple-800">-</p>
+          </div>
+          <div class="bg-purple-50 rounded-lg p-4">
+            <p class="text-sm text-purple-600">Firewalls Backed Up</p>
+            <p id="statBackedUpFirewalls" class="text-xl font-bold text-purple-800">-</p>
+          </div>
+        </div>
+        
+        <!-- Backup History Table -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('timestamp')">Timestamp <span id="sort-bkp-timestamp-icon"></span></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('firewall')">Firewall <span id="sort-bkp-firewall-icon"></span></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('filename')">Filename <span id="sort-bkp-filename-icon"></span></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('size')">Size <span id="sort-bkp-size-icon"></span></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('encrypted')">Encrypted <span id="sort-bkp-encrypted-icon"></span></th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortBackups('verified')">Verified <span id="sort-bkp-verified-icon"></span></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="backupsTable" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Backup Pagination Controls -->
+        <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
+          <div class="flex items-center space-x-2">
+            <label for="backupRowsPerPage" class="text-sm text-gray-700">Rows per page:</label>
+            <select id="backupRowsPerPage" onchange="changeBackupRowsPerPage(this.value)" class="border rounded px-2 py-1 text-sm">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span id="backupPaginationInfo" class="text-sm text-gray-700">Showing 0 - 0 of 0</span>
+            <nav class="flex items-center space-x-1">
+              <button onclick="goToBackupPage('first')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="backupFirstPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              </button>
+              <button onclick="goToBackupPage('prev')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="backupPrevPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <span id="backupPageNumbers" class="flex items-center space-x-1"></span>
+              <button onclick="goToBackupPage('next')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="backupNextPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+              <button onclick="goToBackupPage('last')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="backupLastPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
+        
+        <!-- Scheduled Backups Section -->
+        <div class="mt-8 border-t pt-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Scheduled Backups</h3>
+            <button onclick="showScheduledBackupModal()" class="bg-orange-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-600">
+              + Add Schedule
+            </button>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-orange-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Firewall</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Schedule</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Options</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Last Run</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Next Run</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Status</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="scheduledBackupsTable" class="bg-white divide-y divide-gray-200">
+                <tr><td colspan="7" class="px-4 py-4 text-center text-gray-500">Loading scheduled backups...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs Tab -->
+      <div id="logsTab" class="p-6 hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Activity Logs</h2>
+          <div class="flex space-x-2">
+            <button onclick="clearLogFilters()" class="text-gray-500 hover:text-gray-700 text-sm">Clear Filters</button>
+            <button onclick="loadLogs()" class="text-pfsense-primary hover:text-pfsense-secondary text-sm font-medium">Refresh</button>
+          </div>
+        </div>
+        
+        <!-- Log Filters -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-4 grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+            <input type="date" id="logStartDate" class="w-full border rounded px-2 py-1 text-sm" onchange="applyLogFilters()">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+            <input type="date" id="logEndDate" class="w-full border rounded px-2 py-1 text-sm" onchange="applyLogFilters()">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Firewall</label>
+            <select id="logFirewallFilter" class="w-full border rounded px-2 py-1 text-sm" onchange="applyLogFilters()">
+              <option value="">All Firewalls</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Result</label>
+            <select id="logResultFilter" class="w-full border rounded px-2 py-1 text-sm" onchange="applyLogFilters()">
+              <option value="">All Results</option>
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+              <option value="warning">Warning</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Search</label>
+            <input type="text" id="logSearch" placeholder="Search details..." class="w-full border rounded px-2 py-1 text-sm" onkeyup="debounce(applyLogFilters, 500)()">
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortLogs('timestamp')">Timestamp <span id="sort-log-timestamp-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortLogs('firewall')">Firewall <span id="sort-log-firewall-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortLogs('action')">Action <span id="sort-log-action-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortLogs('details')">Details <span id="sort-log-details-icon"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortLogs('result')">Result <span id="sort-log-result-icon"></span></th>
+              </tr>
+            </thead>
+            <tbody id="logsTable" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Log Pagination Controls -->
+        <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
+          <div class="flex items-center space-x-2">
+            <label for="logRowsPerPage" class="text-sm text-gray-700">Rows per page:</label>
+            <select id="logRowsPerPage" onchange="changeLogRowsPerPage(this.value)" class="border rounded px-2 py-1 text-sm">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-4">
+            <span id="logPaginationInfo" class="text-sm text-gray-700">Showing 0 - 0 of 0</span>
+            <nav class="flex items-center space-x-1">
+              <button onclick="goToLogPage('first')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="logFirstPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+              </button>
+              <button onclick="goToLogPage('prev')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="logPrevPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <span id="logPageNumbers" class="flex items-center space-x-1"></span>
+              <button onclick="goToLogPage('next')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="logNextPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+              <button onclick="goToLogPage('last')" class="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50" id="logLastPage" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vouchers Tab -->
+      <div id="vouchersTab" class="p-6 hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Active Voucher Sessions</h2>
+          <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-1">
+              <label for="voucherAutoRefresh" class="text-xs text-gray-500">Auto-refresh:</label>
+              <select id="voucherAutoRefresh" onchange="setVoucherAutoRefresh(this.value)" class="border rounded px-2 py-1 text-sm text-gray-700">
+                <option value="0">Off</option>
+                <option value="120000">2 min</option>
+                <option value="300000">5 min</option>
+                <option value="600000">10 min</option>
+                <option value="1800000">30 min</option>
+              </select>
+            </div>
+            <select id="voucherFirewallFilter" class="border rounded px-2 py-1 text-sm" onchange="filterVouchers()">
+              <option value="">All Firewalls</option>
+            </select>
+            <input type="text" id="voucherTextFilter" placeholder="Filter by Voucher/IP/MAC..." 
+              class="border rounded px-3 py-1 text-sm" oninput="debounce(filterVouchers, 300)()">
+            <button onclick="loadVouchers()" class="text-pfsense-primary hover:text-pfsense-secondary px-3 py-2 text-sm font-medium">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+        
+        <!-- Voucher Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-teal-50 rounded-lg p-4 cursor-pointer hover:bg-teal-100 transition-colors" onclick="filterVouchersByCategory(null)">
+            <p class="text-sm text-teal-600">Total Active</p>
+            <p id="statTotalVouchers" class="text-2xl font-bold text-teal-800">-</p>
+          </div>
+          <div class="bg-green-50 rounded-lg p-4 cursor-pointer hover:bg-green-100 transition-colors" onclick="filterVouchersByCategory('healthy')">
+            <p class="text-sm text-green-600">Healthy (>3 days)</p>
+            <p id="statVouchersHealthy" class="text-2xl font-bold text-green-800">-</p>
+          </div>
+          <div class="bg-yellow-50 rounded-lg p-4 cursor-pointer hover:bg-yellow-100 transition-colors" onclick="filterVouchersByCategory('expiring')">
+            <p class="text-sm text-yellow-600">Expiring</p>
+            <p id="statVouchersWarning" class="text-2xl font-bold text-yellow-800">-</p>
+          </div>
+          <div class="bg-red-50 rounded-lg p-4 cursor-pointer hover:bg-red-100 transition-colors" onclick="filterVouchersByCategory('critical')">
+            <p class="text-sm text-red-600">Critical (&lt;10m)</p>
+            <p id="statVouchersCritical" class="text-2xl font-bold text-red-800">-</p>
+          </div>
+        </div>
+        
+        <!-- Vouchers Table -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-teal-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('firewall')">
+                  Firewall <span id="sort-firewall-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('ip')">
+                  IP Address <span id="sort-ip-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('mac')">
+                  MAC <span id="sort-mac-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('username')">
+                  Username <span id="sort-username-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('session_start')">
+                  Session Start <span id="sort-session_start-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('last_activity')">
+                  Last Active <span id="sort-last_activity-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider cursor-pointer hover:bg-teal-100" onclick="sortVouchers('remaining')">
+                  Remaining <span id="sort-remaining-icon"></span>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-teal-800 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="vouchersTable" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="9" class="px-4 py-4 text-center text-gray-500">Loading voucher sessions...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add Firewall Modal -->
+  <div id="addFirewallModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold text-gray-900">Add Firewall</h3>
+      </div>
+      <form id="addFirewallForm" onsubmit="submitAddFirewall(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">ID (unique identifier)</label>
+          <input type="text" name="id" required class="w-full border rounded-md px-3 py-2" placeholder="pf-office-main">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input type="text" name="name" required class="w-full border rounded-md px-3 py-2" placeholder="Office Main Firewall">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">URL</label>
+          <input type="url" name="url" required class="w-full border rounded-md px-3 py-2" placeholder="https://192.168.1.1">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+          <input type="text" name="apiKey" required class="w-full border rounded-md px-3 py-2 font-mono text-sm" placeholder="64-character hex key">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+          <input type="text" name="notes" class="w-full border rounded-md px-3 py-2" placeholder="Location or description">
+        </div>
+        <div class="flex justify-end space-x-3 pt-4">
+          <button type="button" onclick="hideAddFirewallModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</button>
+          <button type="submit" class="bg-pfsense-primary text-white px-4 py-2 rounded-md hover:bg-pfsense-secondary">Add Firewall</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Binding Modal -->
+  <div id="addBindingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold text-gray-900">Add MAC Binding</h3>
+      </div>
+      <form id="addBindingForm" onsubmit="submitAddBinding(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Firewall</label>
+          <select name="firewallId" id="bindingFirewallSelect" required class="w-full border rounded-md px-3 py-2">
+            <option value="">Select firewall...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Zone</label>
+          <input type="text" name="zone" required class="w-full border rounded-md px-3 py-2" placeholder="default" value="default">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">MAC Address</label>
+          <input type="text" name="mac" required class="w-full border rounded-md px-3 py-2 font-mono" placeholder="aa:bb:cc:dd:ee:ff">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+          <input type="text" name="description" class="w-full border rounded-md px-3 py-2" placeholder="Device description">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <select name="action" class="w-full border rounded-md px-3 py-2">
+            <option value="pass">Pass (Allow)</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label>
+          <input type="number" name="durationDays" value="30" min="1" max="365" class="w-full border rounded-md px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">IP Address (optional)</label>
+          <input type="text" name="ip" class="w-full border rounded-md px-3 py-2" placeholder="192.168.1.100">
+        </div>
+        <div class="flex justify-end space-x-3 pt-4">
+          <button type="button" onclick="hideAddBindingModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</button>
+          <button type="submit" class="bg-pfsense-primary text-white px-4 py-2 rounded-md hover:bg-pfsense-secondary">Add Binding</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Backup Options Modal -->
+  <div id="backupOptionsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold text-gray-900">Backup Options</h3>
+      </div>
+      <form id="backupOptionsForm" onsubmit="submitBackup(event)" class="p-6 space-y-4">
+        <input type="hidden" name="firewallId" id="backupFirewallId">
+        
+        <div class="space-y-3">
+          <label class="flex items-center">
+            <input type="checkbox" name="skipPackages" class="rounded border-gray-300 text-pfsense-primary">
+            <span class="ml-2 text-sm text-gray-700">Skip package information</span>
+          </label>
+          <label class="flex items-center">
+            <input type="checkbox" name="skipRrd" class="rounded border-gray-300 text-pfsense-primary">
+            <span class="ml-2 text-sm text-gray-700">Skip RRD/graph data (reduces size) - <span class="text-gray-500">RRD data included by default</span></span>
+          </label>
+          <label class="flex items-center">
+            <input type="checkbox" name="includeExtra" checked class="rounded border-gray-300 text-pfsense-primary">
+            <span class="ml-2 text-sm text-gray-700">Include extra data (DHCP, CP db)</span>
+          </label>
+          <label class="flex items-center">
+            <input type="checkbox" name="includeSshKeys" class="rounded border-gray-300 text-pfsense-primary">
+            <span class="ml-2 text-sm text-gray-700">Include SSH host keys</span>
+          </label>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Backup Area</label>
+          <select name="backupArea" class="w-full border rounded-md px-3 py-2 text-sm">
+            <option value="all">All Configuration</option>
+            <option value="captiveportal">Captive Portal Only</option>
+            <option value="filter">Firewall Rules Only</option>
+            <option value="nat">NAT Rules Only</option>
+            <option value="aliases">Aliases Only</option>
+          </select>
+        </div>
+        
+        <div class="border-t pt-4">
+          <label class="flex items-center">
+            <input type="checkbox" name="encrypt" id="backupEncryptCheck" onchange="toggleBackupPassword()" class="rounded border-gray-300 text-pfsense-primary">
+            <span class="ml-2 text-sm text-gray-700">Encrypt backup</span>
+          </label>
+          <div id="backupPasswordField" class="mt-2 hidden">
+            <input type="password" name="password" placeholder="Encryption password" class="w-full border rounded-md px-3 py-2 text-sm">
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4">
+          <button type="button" onclick="hideBackupOptionsModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</button>
+          <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">Create Backup</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Binding Modal -->
+  <div id="editBindingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold text-gray-900">Edit MAC Binding</h3>
+      </div>
+      <form id="editBindingForm" onsubmit="submitEditBinding(event)" class="p-6 space-y-4">
+        <input type="hidden" name="firewallId" id="editBindingFirewallId">
+        <input type="hidden" name="mac" id="editBindingMac">
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">MAC Address</label>
+          <input type="text" id="editBindingMacDisplay" disabled class="w-full border rounded-md px-3 py-2 bg-gray-100 font-mono">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <input type="text" name="description" id="editBindingDescription" class="w-full border rounded-md px-3 py-2" placeholder="Device description">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <select name="action" id="editBindingAction" class="w-full border rounded-md px-3 py-2">
+            <option value="pass">Pass (Allow)</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Expires At</label>
+          <input type="datetime-local" name="expiresAt" id="editBindingExpires" class="w-full border rounded-md px-3 py-2">
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4">
+          <button type="button" onclick="hideEditBindingModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</button>
+          <button type="submit" class="bg-pfsense-primary text-white px-4 py-2 rounded-md hover:bg-pfsense-secondary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scheduled Backup Modal -->
+  <div id="scheduledBackupModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-screen overflow-y-auto">
+      <div class="px-6 py-4 border-b bg-orange-50">
+        <h3 id="scheduledBackupModalTitle" class="text-lg font-semibold text-orange-900">Add Scheduled Backup</h3>
+      </div>
+      <form id="scheduledBackupForm" onsubmit="submitScheduledBackup(event)" class="p-6 space-y-4">
+        <input type="hidden" name="scheduleId" id="scheduleId">
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Firewall</label>
+          <select name="firewallId" id="scheduleFirewallSelect" required class="w-full border rounded-md px-3 py-2">
+            <option value="all">All Firewalls</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+          <select name="schedulePreset" id="schedulePreset" onchange="updateCustomCron()" class="w-full border rounded-md px-3 py-2">
+            <option value="now">Run Now (Manual Backup)</option>
+            <option value="daily">Daily at 2:00 AM</option>
+            <option value="weekly">Weekly on Sunday at 2:00 AM</option>
+            <option value="monthly">Monthly on 1st at 2:00 AM</option>
+            <option value="every6hours">Every 6 Hours</option>
+            <option value="every12hours">Every 12 Hours</option>
+            <option value="custom">Custom Cron Expression</option>
+          </select>
+        </div>
+        
+        <div id="customCronField" class="hidden">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cron Expression</label>
+          <input type="text" name="customCron" id="customCron" class="w-full border rounded-md px-3 py-2 font-mono" placeholder="0 2 * * *">
+          <p class="text-xs text-gray-500 mt-1">Format: minute hour day-of-month month day-of-week</p>
+        </div>
+        
+        <div class="border-t pt-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Backup Options</label>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input type="checkbox" name="skipPackages" class="rounded border-gray-300 text-orange-600">
+              <span class="ml-2 text-sm text-gray-700">Skip package information</span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="skipRrd" class="rounded border-gray-300 text-orange-600">
+              <span class="ml-2 text-sm text-gray-700">Skip RRD/graph data (reduces size) - <span class="text-gray-500">RRD data included by default</span></span>
+            </label>
+            <label class="flex items-center">
+              <input type="checkbox" name="includeExtra" checked class="rounded border-gray-300 text-orange-600">
+              <span class="ml-2 text-sm text-gray-700">Include extra data (DHCP, CP db)</span>
+            </label>
+          </div>
+          <div class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Backup Area</label>
+            <select name="backupArea" class="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="all">All Configuration</option>
+              <option value="captiveportal">Captive Portal Only</option>
+              <option value="filter">Firewall Rules Only</option>
+              <option value="nat">NAT Rules Only</option>
+              <option value="aliases">Aliases Only</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="border-t pt-4">
+          <label class="flex items-center">
+            <input type="checkbox" name="encrypt" id="scheduleEncryptCheck" onchange="toggleSchedulePassword()" class="rounded border-gray-300 text-orange-600">
+            <span class="ml-2 text-sm text-gray-700">Encrypt backups</span>
+          </label>
+          <div id="schedulePasswordField" class="mt-2 hidden">
+            <input type="password" name="password" placeholder="Encryption password" class="w-full border rounded-md px-3 py-2 text-sm">
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+          <input type="text" name="notes" class="w-full border rounded-md px-3 py-2" placeholder="Schedule description">
+        </div>
+        
+        <div class="flex items-center">
+          <input type="checkbox" name="enabled" id="scheduleEnabled" checked class="rounded border-gray-300 text-orange-600">
+          <label for="scheduleEnabled" class="ml-2 text-sm font-medium text-gray-700">Enabled</label>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="hideScheduledBackupModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</button>
+          <button type="submit" class="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">Save Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <script>
+    // Initial data from server
+    let firewalls = <?!= firewalls ?>;
+    let bindings = [];
+    let logs = [];
+    let systemInfoCache = {}; // Cache for system info by firewall ID
+    let logFilters = { limit: 100 }; // Current log filters
+    let scheduledBackups = []; // Scheduled backups list
+    let firewallAutoRefreshInterval = null; // Auto-refresh timer for firewall metrics
+    let bindingsAutoRefreshInterval = null; // Auto-refresh timer for bindings
+    let currentTab = 'firewalls'; // Track current tab for auto-refresh management
+
+    // Sorting state for each table
+    let firewallSortColumn = null;
+    let firewallSortDirection = 'asc';
+    let bindingSortColumn = null;
+    let bindingSortDirection = 'asc';
+    let backupSortColumn = null;
+    let backupSortDirection = 'asc';
+    let logSortColumn = null;
+    let logSortDirection = 'asc';
+
+    // Pagination state for each table
+    let firewallCurrentPage = 1;
+    let firewallRowsPerPage = parseInt(localStorage.getItem('firewallRowsPerPage')) || 25;
+    let bindingCurrentPage = 1;
+    let bindingRowsPerPage = parseInt(localStorage.getItem('bindingRowsPerPage')) || 25;
+    let logCurrentPage = 1;
+    let logRowsPerPage = parseInt(localStorage.getItem('logRowsPerPage')) || 25;
+
+    // Tab management
+    function showTab(tabName) {
+      document.querySelectorAll('[id$="Tab"]').forEach(tab => tab.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-pfsense-primary', 'text-pfsense-primary');
+        btn.classList.add('border-transparent', 'text-gray-500');
+      });
+      
+      document.getElementById(tabName + 'Tab').classList.remove('hidden');
+      const activeBtn = document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+      activeBtn.classList.add('border-pfsense-primary', 'text-pfsense-primary');
+      activeBtn.classList.remove('border-transparent', 'text-gray-500');
+      
+      // Track current tab for auto-refresh management
+      currentTab = tabName;
+      
+      // Clear auto-refresh timers when leaving tabs
+      if (tabName !== 'firewalls') {
+        clearFirewallAutoRefresh();
+      } else {
+        // Restore auto-refresh when returning to firewalls tab
+        restoreFirewallAutoRefresh();
+      }
+      
+      if (tabName !== 'vouchers') {
+        clearVoucherAutoRefresh();
+      } else {
+        // Restore voucher auto-refresh
+        restoreVoucherAutoRefresh();
+      }
+
+      // Manage cleanup trigger countdown timer and bindings auto-refresh
+      if (tabName !== 'bindings') {
+        stopCleanupCountdown();
+        clearBindingsAutoRefresh();
+      } else {
+        // Start cleanup countdown and restore auto-refresh when entering bindings tab
+        startCleanupCountdown();
+        restoreBindingsAutoRefresh();
+      }
+
+      if (tabName === 'bindings' && bindings.length === 0) loadBindings();
+      if (tabName === 'backups') {
+        loadBackupHistory();
+        loadScheduledBackups();
+      }
+      if (tabName === 'logs' && logs.length === 0) loadLogs();
+      if (tabName === 'vouchers') {
+        updateVoucherFirewallSelect();
+        if (voucherSessions.length === 0) loadVouchers();
+      }
+    }
+    
+    // Auto-refresh functions for Firewall metrics
+    function setFirewallAutoRefresh(intervalMs) {
+      const interval = parseInt(intervalMs);
+      
+      // Clear existing interval
+      clearFirewallAutoRefresh();
+      
+      // Save preference to localStorage
+      localStorage.setItem('firewallAutoRefreshInterval', interval);
+      
+      if (interval > 0 && currentTab === 'firewalls') {
+        firewallAutoRefreshInterval = setInterval(() => {
+          refreshSystemInfo();
+        }, interval);
+        showToast(`Auto-refresh set to ${interval / 60000} minutes`, 'info');
+      } else if (interval === 0) {
+        showToast('Auto-refresh disabled', 'info');
+      }
+    }
+    
+    function clearFirewallAutoRefresh() {
+      if (firewallAutoRefreshInterval) {
+        clearInterval(firewallAutoRefreshInterval);
+        firewallAutoRefreshInterval = null;
+      }
+    }
+    
+    function restoreFirewallAutoRefresh() {
+      const savedInterval = localStorage.getItem('firewallAutoRefreshInterval');
+      if (savedInterval && parseInt(savedInterval) > 0) {
+        // Update dropdown to show saved value
+        const dropdown = document.getElementById('firewallAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+        
+        // Restart interval
+        firewallAutoRefreshInterval = setInterval(() => {
+          refreshSystemInfo();
+        }, parseInt(savedInterval));
+      }
+    }
+    
+    function initFirewallAutoRefresh() {
+      const savedInterval = localStorage.getItem('firewallAutoRefreshInterval');
+      if (savedInterval) {
+        const dropdown = document.getElementById('firewallAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+
+        if (parseInt(savedInterval) > 0) {
+          firewallAutoRefreshInterval = setInterval(() => {
+            refreshSystemInfo();
+          }, parseInt(savedInterval));
+        }
+      }
+    }
+
+    // Auto-refresh functions for Bindings
+    function setBindingsAutoRefresh(intervalMs) {
+      const interval = parseInt(intervalMs);
+
+      // Clear existing interval
+      clearBindingsAutoRefresh();
+
+      // Save preference to localStorage
+      localStorage.setItem('bindingsAutoRefreshInterval', interval);
+
+      if (interval > 0 && currentTab === 'bindings') {
+        bindingsAutoRefreshInterval = setInterval(() => {
+          refreshAllBindings();
+        }, interval);
+        showToast(`Bindings auto-refresh set to ${interval / 60000} minutes`, 'info');
+      } else if (interval === 0) {
+        showToast('Bindings auto-refresh disabled', 'info');
+      }
+    }
+
+    function clearBindingsAutoRefresh() {
+      if (bindingsAutoRefreshInterval) {
+        clearInterval(bindingsAutoRefreshInterval);
+        bindingsAutoRefreshInterval = null;
+      }
+    }
+
+    function restoreBindingsAutoRefresh() {
+      const savedInterval = localStorage.getItem('bindingsAutoRefreshInterval');
+      if (savedInterval && parseInt(savedInterval) > 0) {
+        // Update dropdown to show saved value
+        const dropdown = document.getElementById('bindingsAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+
+        // Restart interval
+        bindingsAutoRefreshInterval = setInterval(() => {
+          refreshAllBindings();
+        }, parseInt(savedInterval));
+      }
+    }
+
+    function initBindingsAutoRefresh() {
+      const savedInterval = localStorage.getItem('bindingsAutoRefreshInterval');
+      if (savedInterval) {
+        const dropdown = document.getElementById('bindingsAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+      }
+    }
+
+    // Refresh all bindings from pfSense firewalls
+    async function refreshAllBindings() {
+      showToast('Syncing bindings from all firewalls...', 'info');
+      try {
+        const result = await callServer('manualSync');
+        if (result && result.success) {
+          // Calculate total bindings synced
+          let totalAdded = 0, totalUpdated = 0, totalRemoved = 0;
+          if (result.results) {
+            result.results.forEach(r => {
+              if (r.success && r.sync) {
+                totalAdded += r.sync.added || 0;
+                totalUpdated += r.sync.updated || 0;
+                totalRemoved += r.sync.removed || 0;
+              }
+            });
+          }
+          showToast(`Bindings synced: +${totalAdded} / ~${totalUpdated} / -${totalRemoved}`, 'success');
+          await loadBindings();
+          await loadStats();
+        } else {
+          showToast('Failed to sync bindings', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to sync bindings: ' + error.message, 'error');
+      }
+    }
+
+    // API calls
+    async function apiCall(action, data = {}) {
+      try {
+        const response = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .doPost({ postData: { contents: JSON.stringify({ action, ...data }) } });
+        });
+        return typeof response === 'string' ? JSON.parse(response) : response;
+      } catch (error) {
+        console.error('API error:', error);
+        return { success: false, error: error.message };
+      }
+    }
+
+    async function apiGet(action, params = {}) {
+      try {
+        const paramStr = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+        const response = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .doGet({ parameter: { action, ...params } });
+        });
+        return typeof response === 'string' ? JSON.parse(response) : response;
+      } catch (error) {
+        console.error('API GET error:', error);
+        return { success: false, error: error.message };
+      }
+    }
+
+    // Direct function calls (simpler approach)
+    function callServer(funcName, ...args) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          [funcName](...args);
+      });
+    }
+
+    // Data loading
+    async function loadFirewalls() {
+      try {
+        const result = await callServer('handleApiGetClient', 'getFirewalls', {});
+        if (result && result.firewalls) {
+          firewalls = result.firewalls;
+          renderFirewalls();
+          updateFirewallSelects();
+        }
+      } catch (error) {
+        showToast('Failed to load firewalls', 'error');
+      }
+    }
+
+    async function loadBindings() {
+      try {
+        const result = await callServer('handleApiGetClient', 'getBindings', {});
+        if (result && result.bindings) {
+          bindings = result.bindings;
+          renderBindings();
+        }
+      } catch (error) {
+        showToast('Failed to load bindings', 'error');
+      }
+    }
+    
+    async function cleanupExpiredBindings() {
+      showToast('Cleaning up expired bindings...', 'info');
+      try {
+        // Trigger cleanup on all firewalls via server-side wrapper
+        const cleanupResult = await callServer('cleanupExpiredBindings');
+        
+        if (cleanupResult && cleanupResult.success) {
+          const totalRemoved = (cleanupResult.removed || 0) + (cleanupResult.pfSenseRemoved || 0);
+          showToast(`Cleanup complete: ${totalRemoved} expired bindings removed (${cleanupResult.removed || 0} from Sheets, ${cleanupResult.pfSenseRemoved || 0} from pfSense)`, 'success');
+        } else {
+          showToast(cleanupResult?.error || 'Cleanup failed', 'error');
+        }
+        
+        // Reload bindings to reflect changes
+        await loadBindings();
+        await loadStats();
+      } catch (error) {
+        showToast('Cleanup failed: ' + error.message, 'error');
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const result = await callServer('handleApiGetClient', 'getLogs', { limit: 100 });
+        if (result && result.logs) {
+          logs = result.logs;
+          renderLogs();
+        }
+      } catch (error) {
+        showToast('Failed to load logs', 'error');
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const result = await callServer('getGlobalStats');
+        if (result && result.stats) {
+          updateStats(result.stats);
+        }
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    }
+
+    // Rendering functions
+    function renderFirewalls() {
+      const tbody = document.getElementById('firewallsTable');
+
+      if (firewalls.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">No firewalls configured. Add one to get started.</td></tr>';
+        updateFirewallPagination(0, 1);
+        return;
+      }
+
+      // Apply sorting
+      let sorted = [...firewalls];
+      if (firewallSortColumn) {
+        sorted.sort((a, b) => {
+          const sysA = systemInfoCache[a.id] || {};
+          const sysB = systemInfoCache[b.id] || {};
+          let aVal, bVal;
+
+          switch (firewallSortColumn) {
+            case 'name':
+              aVal = (a.name || '').toLowerCase();
+              bVal = (b.name || '').toLowerCase();
+              break;
+            case 'status':
+              aVal = (a.status || '').toLowerCase();
+              bVal = (b.status || '').toLowerCase();
+              break;
+            case 'version':
+              aVal = (sysA.system?.version || '').toLowerCase();
+              bVal = (sysB.system?.version || '').toLowerCase();
+              break;
+            case 'uptime':
+              aVal = sysA.uptime?.seconds || 0;
+              bVal = sysB.uptime?.seconds || 0;
+              break;
+            case 'ntp':
+              aVal = sysA.ntp_status?.synced ? 1 : 0;
+              bVal = sysB.ntp_status?.synced ? 1 : 0;
+              break;
+            case 'cpu':
+              aVal = sysA.cpu?.total_used || 0;
+              bVal = sysB.cpu?.total_used || 0;
+              break;
+            case 'bindings':
+              aVal = a.activeBindings || 0;
+              bVal = b.activeBindings || 0;
+              break;
+            default:
+              return 0;
+          }
+
+          if (aVal < bVal) return firewallSortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return firewallSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Update sort icons
+      updateFirewallSortIcons();
+
+      // Calculate pagination
+      const totalItems = sorted.length;
+      const totalPages = Math.ceil(totalItems / firewallRowsPerPage) || 1;
+
+      if (firewallCurrentPage > totalPages) firewallCurrentPage = totalPages;
+      if (firewallCurrentPage < 1) firewallCurrentPage = 1;
+
+      const startIndex = (firewallCurrentPage - 1) * firewallRowsPerPage;
+      const endIndex = Math.min(startIndex + firewallRowsPerPage, totalItems);
+      const pageData = sorted.slice(startIndex, endIndex);
+
+      // Update pagination UI
+      updateFirewallPagination(totalItems, totalPages);
+
+      tbody.innerHTML = pageData.map(fw => {
+        const sysinfo = systemInfoCache[fw.id] || {};
+        const uptime = sysinfo.uptime ? sysinfo.uptime.formatted : '-';
+        const version = sysinfo.system ? sysinfo.system.version : '-';
+        const ntpSynced = sysinfo.ntp_status ? sysinfo.ntp_status.synced : null;
+        const cpu = sysinfo.cpu ? sysinfo.cpu.total_used : null;
+        const ram = sysinfo.memory ? sysinfo.memory.percent : null;
+        const disk = sysinfo.disk ? sysinfo.disk.percent : null;
+        
+        const ntpIcon = ntpSynced === true 
+          ? '<span class="text-green-500" title="NTP Synced">&#9679;</span>' 
+          : ntpSynced === false 
+            ? '<span class="text-red-500" title="NTP Not Synced">&#9679;</span>'
+            : '<span class="text-gray-400" title="Unknown">&#9679;</span>';
+        
+        const cpuColor = cpu !== null ? (cpu > 80 ? 'bg-red-500' : cpu > 50 ? 'bg-yellow-500' : 'bg-green-500') : 'bg-gray-300';
+        const ramColor = ram !== null ? (ram > 80 ? 'bg-red-500' : ram > 50 ? 'bg-yellow-500' : 'bg-green-500') : 'bg-gray-300';
+        const diskColor = disk !== null ? (disk > 80 ? 'bg-red-500' : disk > 50 ? 'bg-yellow-500' : 'bg-green-500') : 'bg-gray-300';
+        
+        return `
+        <tr>
+          <td class="px-4 py-4 whitespace-nowrap">
+            <div class="font-medium text-gray-900">${escapeHtml(fw.name)}</div>
+            <div class="text-xs text-gray-500">${escapeHtml(fw.url)}</div>
+          </td>
+          <td class="px-4 py-4 whitespace-nowrap">
+            <span class="status-${fw.status || 'unknown'} font-medium text-sm">${(fw.status || 'unknown').toUpperCase()}</span>
+          </td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">${escapeHtml(version)}</td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">${escapeHtml(uptime)}</td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm">${ntpIcon}</td>
+          <td class="px-4 py-4 whitespace-nowrap">
+            <div class="flex space-x-1" title="CPU: ${cpu !== null ? cpu + '%' : '-'} | RAM: ${ram !== null ? ram + '%' : '-'} | Disk: ${disk !== null ? disk + '%' : '-'}">
+              <div class="w-6 h-2 rounded ${cpuColor}" title="CPU ${cpu !== null ? cpu + '%' : '-'}"></div>
+              <div class="w-6 h-2 rounded ${ramColor}" title="RAM ${ram !== null ? ram + '%' : '-'}"></div>
+              <div class="w-6 h-2 rounded ${diskColor}" title="Disk ${disk !== null ? disk + '%' : '-'}"></div>
+            </div>
+            <div class="text-xs text-gray-400 mt-1">${cpu !== null ? cpu + '%' : '-'} / ${ram !== null ? ram + '%' : '-'} / ${disk !== null ? disk + '%' : '-'}</div>
+          </td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">${fw.activeBindings || 0}</td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm space-x-1">
+            <button onclick="syncFirewall('${fw.id}')" class="text-pfsense-primary hover:text-pfsense-secondary">Sync</button>
+            <button onclick="showBackupOptionsModal('${fw.id}')" class="text-purple-600 hover:text-purple-800">Backup</button>
+            <button onclick="testConnection('${fw.id}')" class="text-green-600 hover:text-green-800">Test</button>
+            <button onclick="removeFirewall('${fw.id}')" class="text-red-600 hover:text-red-800">Remove</button>
+          </td>
+        </tr>
+      `}).join('');
+    }
+
+    function sortFirewalls(column) {
+      if (firewallSortColumn === column) {
+        firewallSortDirection = firewallSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        firewallSortColumn = column;
+        firewallSortDirection = 'asc';
+      }
+      renderFirewalls();
+    }
+
+    function updateFirewallSortIcons() {
+      ['name', 'status', 'version', 'uptime', 'ntp', 'cpu', 'bindings'].forEach(col => {
+        const iconEl = document.getElementById(`sort-fw-${col}-icon`);
+        if (iconEl) iconEl.innerHTML = '';
+      });
+
+      if (firewallSortColumn) {
+        const iconEl = document.getElementById(`sort-fw-${firewallSortColumn}-icon`);
+        if (iconEl) {
+          iconEl.innerHTML = firewallSortDirection === 'asc' ? '↑' : '↓';
+        }
+      }
+    }
+
+    function updateFirewallPagination(totalItems, totalPages) {
+      const startIndex = totalItems === 0 ? 0 : (firewallCurrentPage - 1) * firewallRowsPerPage + 1;
+      const endIndex = Math.min(firewallCurrentPage * firewallRowsPerPage, totalItems);
+
+      document.getElementById('firewallPaginationInfo').textContent =
+        `Showing ${startIndex} - ${endIndex} of ${totalItems}`;
+
+      document.getElementById('firewallFirstPage').disabled = firewallCurrentPage <= 1;
+      document.getElementById('firewallPrevPage').disabled = firewallCurrentPage <= 1;
+      document.getElementById('firewallNextPage').disabled = firewallCurrentPage >= totalPages;
+      document.getElementById('firewallLastPage').disabled = firewallCurrentPage >= totalPages;
+
+      const pageNumbersContainer = document.getElementById('firewallPageNumbers');
+      let pageNumbersHtml = '';
+
+      let startPage = Math.max(1, firewallCurrentPage - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+      for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === firewallCurrentPage;
+        pageNumbersHtml += `<button onclick="goToFirewallPage(${i})" class="px-3 py-1 text-sm rounded ${isActive ? 'bg-pfsense-primary text-white' : 'text-gray-600 hover:bg-gray-100'}">${i}</button>`;
+      }
+
+      pageNumbersContainer.innerHTML = pageNumbersHtml;
+    }
+
+    function changeFirewallRowsPerPage(value) {
+      firewallRowsPerPage = parseInt(value);
+      firewallCurrentPage = 1;
+      localStorage.setItem('firewallRowsPerPage', firewallRowsPerPage);
+      renderFirewalls();
+    }
+
+    function goToFirewallPage(page) {
+      const totalPages = Math.ceil(firewalls.length / firewallRowsPerPage) || 1;
+
+      if (page === 'first') firewallCurrentPage = 1;
+      else if (page === 'prev') firewallCurrentPage = Math.max(1, firewallCurrentPage - 1);
+      else if (page === 'next') firewallCurrentPage = Math.min(totalPages, firewallCurrentPage + 1);
+      else if (page === 'last') firewallCurrentPage = totalPages;
+      else if (typeof page === 'number') firewallCurrentPage = page;
+
+      renderFirewalls();
+    }
+
+    function initFirewallPagination() {
+      const savedRowsPerPage = localStorage.getItem('firewallRowsPerPage');
+      if (savedRowsPerPage) {
+        firewallRowsPerPage = parseInt(savedRowsPerPage);
+        const dropdown = document.getElementById('firewallRowsPerPage');
+        if (dropdown) dropdown.value = savedRowsPerPage;
+      }
+    }
+
+    // Load system info for all firewalls
+    async function refreshSystemInfo() {
+      showToast('Fetching system metrics...', 'info');
+      try {
+        const result = await callServer('getFirewallsWithSystemInfo');
+        if (result && result.results) {
+          result.results.forEach(r => {
+            if (r.success && r.data) {
+              systemInfoCache[r.firewallId] = r.data;
+            }
+          });
+          renderFirewalls();
+          showToast(`Metrics updated for ${result.successCount} firewalls`, 'success');
+        }
+      } catch (error) {
+        showToast('Failed to fetch system metrics', 'error');
+      }
+    }
+
+    function renderBindings() {
+      const tbody = document.getElementById('bindingsTable');
+      const search = document.getElementById('bindingSearch').value.toLowerCase();
+      const firewallFilter = document.getElementById('bindingFirewallFilter').value;
+
+      let filtered = bindings;
+
+      if (search) {
+        filtered = filtered.filter(b =>
+          (b.mac || '').toLowerCase().includes(search) ||
+          (b.ip || '').toLowerCase().includes(search) ||
+          (b.description || '').toLowerCase().includes(search)
+        );
+      }
+
+      if (firewallFilter) {
+        filtered = filtered.filter(b => b.firewallId === firewallFilter);
+      }
+
+      const firewallMap = {};
+      firewalls.forEach(fw => firewallMap[fw.id] = fw.name);
+
+      // Apply sorting
+      if (bindingSortColumn) {
+        filtered = [...filtered].sort((a, b) => {
+          let aVal, bVal;
+
+          switch (bindingSortColumn) {
+            case 'firewall':
+              aVal = (firewallMap[a.firewallId] || a.firewallId || '').toLowerCase();
+              bVal = (firewallMap[b.firewallId] || b.firewallId || '').toLowerCase();
+              break;
+            case 'zone':
+              aVal = (a.zone || '').toLowerCase();
+              bVal = (b.zone || '').toLowerCase();
+              break;
+            case 'mac':
+              aVal = (a.mac || '').toLowerCase();
+              bVal = (b.mac || '').toLowerCase();
+              break;
+            case 'description':
+              aVal = (a.description || '').toLowerCase();
+              bVal = (b.description || '').toLowerCase();
+              break;
+            case 'action':
+              aVal = (a.action || '').toLowerCase();
+              bVal = (b.action || '').toLowerCase();
+              break;
+            case 'expires':
+              aVal = a.expiresAt ? new Date(a.expiresAt).getTime() : 0;
+              bVal = b.expiresAt ? new Date(b.expiresAt).getTime() : 0;
+              break;
+            case 'status':
+              aVal = a.expiresAt && new Date(a.expiresAt) < new Date() ? 1 : 0;
+              bVal = b.expiresAt && new Date(b.expiresAt) < new Date() ? 1 : 0;
+              break;
+            default:
+              return 0;
+          }
+
+          if (aVal < bVal) return bindingSortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return bindingSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Update sort icons
+      updateBindingSortIcons();
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">No bindings found.</td></tr>';
+        updateBindingPagination(0, 1);
+        return;
+      }
+
+      // Calculate pagination
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / bindingRowsPerPage) || 1;
+
+      if (bindingCurrentPage > totalPages) bindingCurrentPage = totalPages;
+      if (bindingCurrentPage < 1) bindingCurrentPage = 1;
+
+      const startIndex = (bindingCurrentPage - 1) * bindingRowsPerPage;
+      const endIndex = Math.min(startIndex + bindingRowsPerPage, totalItems);
+      const pageData = filtered.slice(startIndex, endIndex);
+
+      // Update pagination UI
+      updateBindingPagination(totalItems, totalPages);
+
+      tbody.innerHTML = pageData.map(b => {
+        const isExpired = b.expiresAt && new Date(b.expiresAt) < new Date();
+        const isBlock = b.action === 'block';
+        return `
+          <tr class="${isExpired ? 'bg-red-50' : isBlock ? 'bg-yellow-50' : ''}">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">${escapeHtml(firewallMap[b.firewallId] || b.firewallId)}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${escapeHtml(b.zone || '-')}</td>
+            <td class="px-4 py-4 whitespace-nowrap font-mono text-sm text-gray-900">${escapeHtml(b.mac)}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate" title="${escapeHtml(b.description || '')}">${escapeHtml(b.description || '-')}</td>
+            <td class="px-4 py-4 whitespace-nowrap">
+              <span class="px-2 py-1 text-xs font-medium rounded-full ${isBlock ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">${isBlock ? 'Block' : 'Pass'}</span>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm ${isExpired ? 'text-red-600' : 'text-gray-500'}">${b.expiresAt ? formatDate(b.expiresAt) : '-'}</td>
+            <td class="px-4 py-4 whitespace-nowrap">
+              <span class="px-2 py-1 text-xs font-medium rounded-full ${isExpired ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">${isExpired ? 'Expired' : 'Active'}</span>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm space-x-1">
+              <button onclick="showEditBindingModal('${b.firewallId}', '${b.mac}')" class="text-pfsense-primary hover:text-pfsense-secondary">Edit</button>
+              <button onclick="removeBinding('${b.firewallId}', '${b.mac}', ${b.zone ? `'${b.zone}'` : 'null'})" class="text-red-600 hover:text-red-800">Remove</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function sortBindings(column) {
+      if (bindingSortColumn === column) {
+        bindingSortDirection = bindingSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        bindingSortColumn = column;
+        bindingSortDirection = 'asc';
+      }
+      renderBindings();
+    }
+
+    function updateBindingSortIcons() {
+      ['firewall', 'zone', 'mac', 'description', 'action', 'expires', 'status'].forEach(col => {
+        const iconEl = document.getElementById(`sort-bind-${col}-icon`);
+        if (iconEl) iconEl.innerHTML = '';
+      });
+
+      if (bindingSortColumn) {
+        const iconEl = document.getElementById(`sort-bind-${bindingSortColumn}-icon`);
+        if (iconEl) {
+          iconEl.innerHTML = bindingSortDirection === 'asc' ? '↑' : '↓';
+        }
+      }
+    }
+
+    function updateBindingPagination(totalItems, totalPages) {
+      const startIndex = totalItems === 0 ? 0 : (bindingCurrentPage - 1) * bindingRowsPerPage + 1;
+      const endIndex = Math.min(bindingCurrentPage * bindingRowsPerPage, totalItems);
+
+      document.getElementById('bindingPaginationInfo').textContent =
+        `Showing ${startIndex} - ${endIndex} of ${totalItems}`;
+
+      document.getElementById('bindingFirstPage').disabled = bindingCurrentPage <= 1;
+      document.getElementById('bindingPrevPage').disabled = bindingCurrentPage <= 1;
+      document.getElementById('bindingNextPage').disabled = bindingCurrentPage >= totalPages;
+      document.getElementById('bindingLastPage').disabled = bindingCurrentPage >= totalPages;
+
+      const pageNumbersContainer = document.getElementById('bindingPageNumbers');
+      let pageNumbersHtml = '';
+
+      let startPage = Math.max(1, bindingCurrentPage - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+      for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === bindingCurrentPage;
+        pageNumbersHtml += `<button onclick="goToBindingPage(${i})" class="px-3 py-1 text-sm rounded ${isActive ? 'bg-pfsense-primary text-white' : 'text-gray-600 hover:bg-gray-100'}">${i}</button>`;
+      }
+
+      pageNumbersContainer.innerHTML = pageNumbersHtml;
+    }
+
+    function changeBindingRowsPerPage(value) {
+      bindingRowsPerPage = parseInt(value);
+      bindingCurrentPage = 1;
+      localStorage.setItem('bindingRowsPerPage', bindingRowsPerPage);
+      renderBindings();
+    }
+
+    function goToBindingPage(page) {
+      const totalPages = Math.ceil(bindings.length / bindingRowsPerPage) || 1;
+
+      if (page === 'first') bindingCurrentPage = 1;
+      else if (page === 'prev') bindingCurrentPage = Math.max(1, bindingCurrentPage - 1);
+      else if (page === 'next') bindingCurrentPage = Math.min(totalPages, bindingCurrentPage + 1);
+      else if (page === 'last') bindingCurrentPage = totalPages;
+      else if (typeof page === 'number') bindingCurrentPage = page;
+
+      renderBindings();
+    }
+
+    function initBindingPagination() {
+      const savedRowsPerPage = localStorage.getItem('bindingRowsPerPage');
+      if (savedRowsPerPage) {
+        bindingRowsPerPage = parseInt(savedRowsPerPage);
+        const dropdown = document.getElementById('bindingRowsPerPage');
+        if (dropdown) dropdown.value = savedRowsPerPage;
+      }
+    }
+
+    function renderLogs() {
+      const tbody = document.getElementById('logsTable');
+
+      // Apply sorting
+      let sorted = [...logs];
+      if (logSortColumn) {
+        sorted.sort((a, b) => {
+          let aVal, bVal;
+
+          switch (logSortColumn) {
+            case 'timestamp':
+              aVal = new Date(a.timestamp || 0).getTime();
+              bVal = new Date(b.timestamp || 0).getTime();
+              break;
+            case 'firewall':
+              aVal = (a.firewall || '').toLowerCase();
+              bVal = (b.firewall || '').toLowerCase();
+              break;
+            case 'action':
+              aVal = (a.action || '').toLowerCase();
+              bVal = (b.action || '').toLowerCase();
+              break;
+            case 'details':
+              aVal = (a.details || '').toLowerCase();
+              bVal = (b.details || '').toLowerCase();
+              break;
+            case 'result':
+              aVal = (a.result || '').toLowerCase();
+              bVal = (b.result || '').toLowerCase();
+              break;
+            default:
+              return 0;
+          }
+
+          if (aVal < bVal) return logSortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return logSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Update sort icons
+      updateLogSortIcons();
+
+      if (sorted.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">No logs available.</td></tr>';
+        updateLogPagination(0, 1);
+        return;
+      }
+
+      // Calculate pagination
+      const totalItems = sorted.length;
+      const totalPages = Math.ceil(totalItems / logRowsPerPage) || 1;
+
+      if (logCurrentPage > totalPages) logCurrentPage = totalPages;
+      if (logCurrentPage < 1) logCurrentPage = 1;
+
+      const startIndex = (logCurrentPage - 1) * logRowsPerPage;
+      const endIndex = Math.min(startIndex + logRowsPerPage, totalItems);
+      const pageData = sorted.slice(startIndex, endIndex);
+
+      // Update pagination UI
+      updateLogPagination(totalItems, totalPages);
+
+      tbody.innerHTML = pageData.map(log => `
+        <tr>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(log.timestamp)}</td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">${escapeHtml(log.firewall)}</td>
+          <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${escapeHtml(log.action)}</td>
+          <td class="px-4 py-4 text-sm text-gray-500 max-w-md truncate" title="${escapeHtml(log.details)}">${escapeHtml(log.details)}</td>
+          <td class="px-4 py-4 whitespace-nowrap">
+            <span class="px-2 py-1 text-xs font-medium rounded-full ${log.result === 'success' ? 'bg-green-100 text-green-800' : log.result === 'error' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">${log.result}</span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function sortLogs(column) {
+      if (logSortColumn === column) {
+        logSortDirection = logSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        logSortColumn = column;
+        logSortDirection = 'asc';
+      }
+      renderLogs();
+    }
+
+    function updateLogSortIcons() {
+      ['timestamp', 'firewall', 'action', 'details', 'result'].forEach(col => {
+        const iconEl = document.getElementById(`sort-log-${col}-icon`);
+        if (iconEl) iconEl.innerHTML = '';
+      });
+
+      if (logSortColumn) {
+        const iconEl = document.getElementById(`sort-log-${logSortColumn}-icon`);
+        if (iconEl) {
+          iconEl.innerHTML = logSortDirection === 'asc' ? '↑' : '↓';
+        }
+      }
+    }
+
+    function updateLogPagination(totalItems, totalPages) {
+      const startIndex = totalItems === 0 ? 0 : (logCurrentPage - 1) * logRowsPerPage + 1;
+      const endIndex = Math.min(logCurrentPage * logRowsPerPage, totalItems);
+
+      document.getElementById('logPaginationInfo').textContent =
+        `Showing ${startIndex} - ${endIndex} of ${totalItems}`;
+
+      document.getElementById('logFirstPage').disabled = logCurrentPage <= 1;
+      document.getElementById('logPrevPage').disabled = logCurrentPage <= 1;
+      document.getElementById('logNextPage').disabled = logCurrentPage >= totalPages;
+      document.getElementById('logLastPage').disabled = logCurrentPage >= totalPages;
+
+      const pageNumbersContainer = document.getElementById('logPageNumbers');
+      let pageNumbersHtml = '';
+
+      let startPage = Math.max(1, logCurrentPage - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+      for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === logCurrentPage;
+        pageNumbersHtml += `<button onclick="goToLogPage(${i})" class="px-3 py-1 text-sm rounded ${isActive ? 'bg-pfsense-primary text-white' : 'text-gray-600 hover:bg-gray-100'}">${i}</button>`;
+      }
+
+      pageNumbersContainer.innerHTML = pageNumbersHtml;
+    }
+
+    function changeLogRowsPerPage(value) {
+      logRowsPerPage = parseInt(value);
+      logCurrentPage = 1;
+      localStorage.setItem('logRowsPerPage', logRowsPerPage);
+      renderLogs();
+    }
+
+    function goToLogPage(page) {
+      const totalPages = Math.ceil(logs.length / logRowsPerPage) || 1;
+
+      if (page === 'first') logCurrentPage = 1;
+      else if (page === 'prev') logCurrentPage = Math.max(1, logCurrentPage - 1);
+      else if (page === 'next') logCurrentPage = Math.min(totalPages, logCurrentPage + 1);
+      else if (page === 'last') logCurrentPage = totalPages;
+      else if (typeof page === 'number') logCurrentPage = page;
+
+      renderLogs();
+    }
+
+    function initLogPagination() {
+      const savedRowsPerPage = localStorage.getItem('logRowsPerPage');
+      if (savedRowsPerPage) {
+        logRowsPerPage = parseInt(savedRowsPerPage);
+        const dropdown = document.getElementById('logRowsPerPage');
+        if (dropdown) dropdown.value = savedRowsPerPage;
+      }
+    }
+
+    function updateStats(stats) {
+      document.getElementById('statTotalFirewalls').textContent = stats.totalFirewalls || 0;
+      document.getElementById('statOnlineFirewalls').textContent = stats.onlineFirewalls || 0;
+      document.getElementById('statTotalBindings').textContent = stats.totalBindings || 0;
+      document.getElementById('statExpiringBindings').textContent = stats.expiringOneDay || 0;
+    }
+
+    function updateFirewallSelects() {
+      const options = firewalls.map(fw => `<option value="${fw.id}">${escapeHtml(fw.name)}</option>`).join('');
+      const nameOptions = firewalls.map(fw => `<option value="${escapeHtml(fw.name)}">${escapeHtml(fw.name)}</option>`).join('');
+      
+      document.getElementById('bindingFirewallSelect').innerHTML = '<option value="">Select firewall...</option>' + options;
+      document.getElementById('bindingFirewallFilter').innerHTML = '<option value="">All Firewalls</option>' + options;
+      document.getElementById('backupFirewallFilter').innerHTML = '<option value="">All Firewalls</option>' + options;
+      document.getElementById('logFirewallFilter').innerHTML = '<option value="">All Firewalls</option>' + nameOptions;
+    }
+
+    // Actions
+    async function syncFirewall(firewallId) {
+      showToast('Syncing firewall...', 'info');
+      try {
+        const result = await callServer('syncFirewall', firewallId);
+        if (result && result.success) {
+          showToast('Firewall synced successfully', 'success');
+          await loadFirewalls();
+          await loadStats();
+        } else {
+          showToast(result?.error || 'Sync failed', 'error');
+        }
+      } catch (error) {
+        showToast('Sync failed: ' + error.message, 'error');
+      }
+    }
+
+    async function syncAllFirewalls() {
+      showToast('Syncing all firewalls...', 'info');
+      try {
+        const result = await callServer('manualSync');
+        if (result && result.success) {
+          showToast(`Synced ${result.successCount}/${result.totalFirewalls} firewalls`, 'success');
+          await loadFirewalls();
+          await loadStats();
+        } else {
+          showToast('Sync failed', 'error');
+        }
+      } catch (error) {
+        showToast('Sync failed: ' + error.message, 'error');
+      }
+    }
+
+    async function testConnection(firewallId) {
+      showToast('Testing connection...', 'info');
+      try {
+        const result = await callServer('testConnection', firewallId);
+        if (result && result.success) {
+          showToast(`Connection successful (${result.responseTime}ms)`, 'success');
+          await loadFirewalls();
+        } else {
+          showToast(result?.error || 'Connection failed', 'error');
+        }
+      } catch (error) {
+        showToast('Test failed: ' + error.message, 'error');
+      }
+    }
+
+    async function removeFirewall(firewallId) {
+      if (!confirm('Are you sure you want to remove this firewall? This will also remove all associated bindings from the local database.')) {
+        return;
+      }
+      
+      try {
+        const result = await callServer('removeFirewall', firewallId);
+        if (result && result.success) {
+          showToast('Firewall removed', 'success');
+          await loadFirewalls();
+          await loadStats();
+        } else {
+          showToast(result?.error || 'Failed to remove firewall', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to remove firewall: ' + error.message, 'error');
+      }
+    }
+
+    async function removeBinding(firewallId, mac, zone) {
+      if (!confirm(`Remove binding for ${mac}?`)) return;
+      
+      try {
+        const payload = { firewallId, mac, zone: zone || null };
+        const result = await callServer('removeBinding', payload);
+        if (result && result.success) {
+          showToast('Binding removed', 'success');
+          await loadBindings();
+          await loadStats();
+        } else {
+          showToast(result?.error || 'Failed to remove binding', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to remove binding: ' + error.message, 'error');
+      }
+    }
+
+    // Modal management
+    function showAddFirewallModal() {
+      document.getElementById('addFirewallModal').classList.remove('hidden');
+      document.getElementById('addFirewallModal').classList.add('flex');
+    }
+
+    function hideAddFirewallModal() {
+      document.getElementById('addFirewallModal').classList.add('hidden');
+      document.getElementById('addFirewallModal').classList.remove('flex');
+      document.getElementById('addFirewallForm').reset();
+    }
+
+    function showAddBindingModal() {
+      document.getElementById('addBindingModal').classList.remove('hidden');
+      document.getElementById('addBindingModal').classList.add('flex');
+    }
+
+    function hideAddBindingModal() {
+      document.getElementById('addBindingModal').classList.add('hidden');
+      document.getElementById('addBindingModal').classList.remove('flex');
+      document.getElementById('addBindingForm').reset();
+    }
+
+    async function submitAddFirewall(event) {
+      event.preventDefault();
+      const form = event.target;
+      const firewall = {
+        id: form.id.value,
+        name: form.name.value,
+        url: form.url.value,
+        apiKey: form.apiKey.value,
+        notes: form.notes.value
+      };
+      
+      try {
+        const result = await callServer('addFirewall', firewall);
+        if (result && result.success) {
+          showToast('Firewall added', 'success');
+          hideAddFirewallModal();
+          await loadFirewalls();
+          updateFirewallSelects();
+        } else {
+          showToast(result?.error || 'Failed to add firewall', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to add firewall: ' + error.message, 'error');
+      }
+    }
+
+    async function submitAddBinding(event) {
+      event.preventDefault();
+      const form = event.target;
+      const binding = {
+        firewallId: form.firewallId.value,
+        zone: form.zone.value,
+        mac: form.mac.value,
+        description: form.description.value || '',
+        action: form.action.value || 'pass',
+        durationMinutes: parseInt(form.durationDays.value) * 24 * 60,
+        ip: form.ip.value || null
+      };
+      
+      try {
+        const result = await callServer('addBinding', binding);
+        if (result && result.success) {
+          showToast('Binding added', 'success');
+          hideAddBindingModal();
+          await loadBindings();
+          await loadStats();
+        } else {
+          // Check for voucher reuse error
+          if (result?.error_code === 'VOUCHER_ALREADY_IN_USE' || result?.error === 'VOUCHER_ALREADY_IN_USE') {
+            showToast(result?.message || 'This voucher is already in use on another device', 'error');
+          } else {
+            showToast(result?.message || result?.error || 'Failed to add binding', 'error');
+          }
+        }
+      } catch (error) {
+        showToast('Failed to add binding: ' + error.message, 'error');
+      }
+    }
+
+    // Utility functions
+    function filterBindings() {
+      renderBindings();
+    }
+
+    function refreshData() {
+      loadFirewalls();
+      loadBindings();
+      loadStats();
+      showToast('Data refreshed', 'info');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        warning: 'bg-yellow-500',
+        info: 'bg-blue-500'
+      };
+
+      // Error messages stay longer
+      const duration = type === 'error' ? 6000 : 4000;
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg max-w-md`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => toast.remove(), duration);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleString();
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Cleanup trigger countdown timer
+    // Cleanup runs every 15 minutes on Google Apps Script triggers
+    const CLEANUP_INTERVAL_MINUTES = 15;
+    let cleanupCountdownInterval = null;
+
+    function startCleanupCountdown() {
+      // Clear existing interval
+      if (cleanupCountdownInterval) {
+        clearInterval(cleanupCountdownInterval);
+      }
+
+      // Update countdown every second
+      updateCleanupCountdown();
+      cleanupCountdownInterval = setInterval(updateCleanupCountdown, 1000);
+    }
+
+    function stopCleanupCountdown() {
+      if (cleanupCountdownInterval) {
+        clearInterval(cleanupCountdownInterval);
+        cleanupCountdownInterval = null;
+      }
+    }
+
+    function updateCleanupCountdown() {
+      const countdownEl = document.getElementById('cleanupCountdown');
+      if (!countdownEl) return;
+
+      // Calculate time until next 15-minute mark
+      const now = new Date();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+
+      // Find next 15-minute interval (0, 15, 30, 45)
+      const currentInterval = Math.floor(minutes / CLEANUP_INTERVAL_MINUTES) * CLEANUP_INTERVAL_MINUTES;
+      const nextInterval = currentInterval + CLEANUP_INTERVAL_MINUTES;
+
+      let minutesRemaining, secondsRemaining;
+
+      if (nextInterval >= 60) {
+        // Next interval is in the next hour
+        minutesRemaining = (60 - minutes - 1) + (nextInterval - 60);
+        secondsRemaining = 60 - seconds;
+        if (secondsRemaining === 60) {
+          secondsRemaining = 0;
+          minutesRemaining++;
+        }
+      } else {
+        minutesRemaining = nextInterval - minutes - 1;
+        secondsRemaining = 60 - seconds;
+        if (secondsRemaining === 60) {
+          secondsRemaining = 0;
+          minutesRemaining++;
+        }
+      }
+
+      // Format as MM:SS
+      const formatted = `${minutesRemaining.toString().padStart(2, '0')}:${secondsRemaining.toString().padStart(2, '0')}`;
+      countdownEl.textContent = formatted;
+
+      // Color based on urgency
+      if (minutesRemaining < 1) {
+        countdownEl.className = 'ml-1 font-mono font-medium text-red-600';
+      } else if (minutesRemaining < 5) {
+        countdownEl.className = 'ml-1 font-mono font-medium text-orange-600';
+      } else {
+        countdownEl.className = 'ml-1 font-mono font-medium text-green-600';
+      }
+    }
+
+    // Debounce function for search inputs
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
+    }
+
+    // Backup functions
+    let backupHistory = [];
+    let backupCurrentPage = 1;
+    let backupRowsPerPage = parseInt(localStorage.getItem('backupRowsPerPage')) || 25;
+
+    async function loadBackupHistory() {
+      try {
+        const firewallId = document.getElementById('backupFirewallFilter').value || null;
+        // Fetch more backups for client-side pagination
+        const result = await callServer('handleApiGetClient', 'getBackupHistory', { firewallId, limit: 500 });
+        if (result && result.backups) {
+          backupHistory = result.backups;
+          backupCurrentPage = 1; // Reset to first page on filter change
+          renderBackups();
+        }
+        await loadBackupStats();
+      } catch (error) {
+        showToast('Failed to load backups', 'error');
+      }
+    }
+
+    async function loadBackupStats() {
+      try {
+        const result = await callServer('handleApiGetClient', 'getBackupStats', {});
+        if (result && result.stats) {
+          updateBackupStats(result.stats);
+        }
+      } catch (error) {
+        console.error('Failed to load backup stats:', error);
+      }
+    }
+
+    function updateBackupStats(stats) {
+      document.getElementById('statTotalBackups').textContent = stats.totalBackups || 0;
+      document.getElementById('statBackupStorage').textContent = stats.totalSizeFormatted || '0 B';
+      document.getElementById('statLastBackup').textContent = stats.newestBackup ? formatDate(stats.newestBackup) : 'Never';
+      document.getElementById('statBackedUpFirewalls').textContent = Object.keys(stats.byFirewall || {}).length;
+    }
+
+    function renderBackups() {
+      const tbody = document.getElementById('backupsTable');
+
+      if (backupHistory.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No backups found. Click "Backup All" to create backups.</td></tr>';
+        updateBackupPagination();
+        updateBackupSortIcons();
+        return;
+      }
+
+      // Apply sorting
+      let sorted = [...backupHistory];
+      if (backupSortColumn) {
+        sorted.sort((a, b) => {
+          let aVal, bVal;
+
+          switch (backupSortColumn) {
+            case 'timestamp':
+              aVal = new Date(a.timestamp || 0).getTime();
+              bVal = new Date(b.timestamp || 0).getTime();
+              break;
+            case 'firewall':
+              aVal = (a.firewallName || '').toLowerCase();
+              bVal = (b.firewallName || '').toLowerCase();
+              break;
+            case 'filename':
+              aVal = (a.filename || '').toLowerCase();
+              bVal = (b.filename || '').toLowerCase();
+              break;
+            case 'size':
+              aVal = a.sizeBytes || 0;
+              bVal = b.sizeBytes || 0;
+              break;
+            case 'encrypted':
+              aVal = a.encrypted ? 1 : 0;
+              bVal = b.encrypted ? 1 : 0;
+              break;
+            case 'verified':
+              aVal = a.verified ? 1 : 0;
+              bVal = b.verified ? 1 : 0;
+              break;
+            default:
+              return 0;
+          }
+
+          if (aVal < bVal) return backupSortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return backupSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Update sort icons
+      updateBackupSortIcons();
+
+      // Calculate pagination
+      const totalItems = sorted.length;
+      const totalPages = Math.ceil(totalItems / backupRowsPerPage);
+      
+      // Ensure current page is valid
+      if (backupCurrentPage > totalPages) backupCurrentPage = totalPages;
+      if (backupCurrentPage < 1) backupCurrentPage = 1;
+      
+      const startIndex = (backupCurrentPage - 1) * backupRowsPerPage;
+      const endIndex = Math.min(startIndex + backupRowsPerPage, totalItems);
+      const pageData = sorted.slice(startIndex, endIndex);
+      
+      tbody.innerHTML = pageData.map(backup => `
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(backup.timestamp)}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${escapeHtml(backup.firewallName)}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">${escapeHtml(backup.filename)}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatBytes(backup.sizeBytes)}</td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="px-2 py-1 text-xs font-medium rounded-full ${backup.encrypted ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">${backup.encrypted ? 'Encrypted' : 'Plain'}</span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-center">
+            <span class="text-lg font-bold ${backup.verified ? 'text-green-600' : 'text-gray-300'}" title="${backup.verified ? 'Backup verified' : 'Not verified'}">${backup.verified ? '*' : ''}</span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <a href="${backup.fileUrl}" target="_blank" class="text-pfsense-primary hover:text-pfsense-secondary mr-2">Download</a>
+          </td>
+        </tr>
+      `).join('');
+      
+      updateBackupPagination();
+    }
+    
+    function updateBackupPagination() {
+      const totalItems = backupHistory.length;
+      const totalPages = Math.ceil(totalItems / backupRowsPerPage) || 1;
+      const startIndex = totalItems === 0 ? 0 : (backupCurrentPage - 1) * backupRowsPerPage + 1;
+      const endIndex = Math.min(backupCurrentPage * backupRowsPerPage, totalItems);
+      
+      // Update info text
+      document.getElementById('backupPaginationInfo').textContent = 
+        `Showing ${startIndex} - ${endIndex} of ${totalItems}`;
+      
+      // Update button states
+      document.getElementById('backupFirstPage').disabled = backupCurrentPage <= 1;
+      document.getElementById('backupPrevPage').disabled = backupCurrentPage <= 1;
+      document.getElementById('backupNextPage').disabled = backupCurrentPage >= totalPages;
+      document.getElementById('backupLastPage').disabled = backupCurrentPage >= totalPages;
+      
+      // Update page numbers
+      const pageNumbersContainer = document.getElementById('backupPageNumbers');
+      let pageNumbersHtml = '';
+      
+      // Show max 5 page buttons
+      let startPage = Math.max(1, backupCurrentPage - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === backupCurrentPage;
+        pageNumbersHtml += `<button onclick="goToBackupPage(${i})" class="px-3 py-1 text-sm rounded ${isActive ? 'bg-pfsense-primary text-white' : 'text-gray-600 hover:bg-gray-100'}">${i}</button>`;
+      }
+      
+      pageNumbersContainer.innerHTML = pageNumbersHtml;
+    }
+
+    function sortBackups(column) {
+      if (backupSortColumn === column) {
+        backupSortDirection = backupSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        backupSortColumn = column;
+        backupSortDirection = 'asc';
+      }
+      renderBackups();
+    }
+
+    function updateBackupSortIcons() {
+      ['timestamp', 'firewall', 'filename', 'size', 'encrypted', 'verified'].forEach(col => {
+        const iconEl = document.getElementById(`sort-bkp-${col}-icon`);
+        if (iconEl) iconEl.innerHTML = '';
+      });
+
+      if (backupSortColumn) {
+        const iconEl = document.getElementById(`sort-bkp-${backupSortColumn}-icon`);
+        if (iconEl) {
+          iconEl.innerHTML = backupSortDirection === 'asc' ? '↑' : '↓';
+        }
+      }
+    }
+    
+    function changeBackupRowsPerPage(value) {
+      backupRowsPerPage = parseInt(value);
+      backupCurrentPage = 1;
+      localStorage.setItem('backupRowsPerPage', backupRowsPerPage);
+      renderBackups();
+    }
+    
+    function goToBackupPage(page) {
+      const totalPages = Math.ceil(backupHistory.length / backupRowsPerPage) || 1;
+      
+      if (page === 'first') backupCurrentPage = 1;
+      else if (page === 'prev') backupCurrentPage = Math.max(1, backupCurrentPage - 1);
+      else if (page === 'next') backupCurrentPage = Math.min(totalPages, backupCurrentPage + 1);
+      else if (page === 'last') backupCurrentPage = totalPages;
+      else if (typeof page === 'number') backupCurrentPage = page;
+      
+      renderBackups();
+    }
+    
+    function initBackupPagination() {
+      const savedRowsPerPage = localStorage.getItem('backupRowsPerPage');
+      if (savedRowsPerPage) {
+        backupRowsPerPage = parseInt(savedRowsPerPage);
+        const dropdown = document.getElementById('backupRowsPerPage');
+        if (dropdown) dropdown.value = savedRowsPerPage;
+      }
+    }
+    
+    // Scheduled Backups Functions
+    async function loadScheduledBackups() {
+      try {
+        const result = await callServer('getScheduledBackups', null);
+        if (result) {
+          scheduledBackups = result;
+          renderScheduledBackups();
+        }
+      } catch (error) {
+        console.error('Failed to load scheduled backups:', error);
+      }
+    }
+    
+    function renderScheduledBackups() {
+      const tbody = document.getElementById('scheduledBackupsTable');
+      
+      if (!scheduledBackups || scheduledBackups.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-4 text-center text-gray-500">No scheduled backups configured. Click "Add Schedule" to create one.</td></tr>';
+        return;
+      }
+      
+      const firewallMap = {};
+      firewalls.forEach(fw => firewallMap[fw.id] = fw.name);
+      
+      tbody.innerHTML = scheduledBackups.map(schedule => {
+        const firewallName = schedule.firewallId === 'all' ? 'All Firewalls' : (firewallMap[schedule.firewallId] || schedule.firewallId);
+        const scheduleDisplay = getScheduleDisplayName(schedule.schedule);
+        const optionsSummary = getOptionsSummary(schedule.options);
+        const lastRun = schedule.lastRun ? formatDate(schedule.lastRun) : 'Never';
+        const nextRun = schedule.schedule === 'NOW' ? '-' : (schedule.nextRun ? formatDate(schedule.nextRun) : '-');
+        
+        return `
+          <tr>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">${escapeHtml(firewallName)}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+              <span class="font-medium">${escapeHtml(scheduleDisplay)}</span>
+              <span class="block text-xs text-gray-400 font-mono">${escapeHtml(schedule.schedule)}</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500">${optionsSummary}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${lastRun}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${nextRun}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="px-2 py-1 text-xs font-medium rounded-full ${schedule.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">${schedule.enabled ? 'Active' : 'Disabled'}</span>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm space-x-1">
+              <button onclick="runScheduledBackupNow('${schedule.id}')" class="text-blue-600 hover:text-blue-800 font-medium">Run Now</button>
+              <button onclick="toggleScheduleEnabled('${schedule.id}', ${!schedule.enabled})" class="text-${schedule.enabled ? 'yellow' : 'green'}-600 hover:text-${schedule.enabled ? 'yellow' : 'green'}-800">${schedule.enabled ? 'Disable' : 'Enable'}</button>
+              <button onclick="editScheduledBackup('${schedule.id}')" class="text-pfsense-primary hover:text-pfsense-secondary">Edit</button>
+              <button onclick="deleteScheduledBackup('${schedule.id}')" class="text-red-600 hover:text-red-800">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    function getScheduleDisplayName(cron) {
+      if (cron === 'NOW') return 'Run Now (Manual)';
+      const presets = {
+        '0 2 * * *': 'Daily at 2:00 AM',
+        '0 2 * * 0': 'Weekly (Sunday)',
+        '0 2 1 * *': 'Monthly (1st)',
+        '0 */6 * * *': 'Every 6 Hours',
+        '0 */12 * * *': 'Every 12 Hours'
+      };
+      return presets[cron] || 'Custom';
+    }
+    
+    function getOptionsSummary(options) {
+      if (!options) return '-';
+      const parts = [];
+      if (options.skipPackages) parts.push('Skip pkg');
+      if (options.skipRrd) parts.push('Skip RRD');
+      if (options.includeExtra !== false) parts.push('+ Extra');
+      if (options.encrypt) parts.push('Encrypted');
+      return parts.length > 0 ? parts.join(', ') : 'Default';
+    }
+    
+    function showScheduledBackupModal(scheduleId = null) {
+      const modal = document.getElementById('scheduledBackupModal');
+      const form = document.getElementById('scheduledBackupForm');
+      const title = document.getElementById('scheduledBackupModalTitle');
+      
+      // Populate firewall selector
+      const select = document.getElementById('scheduleFirewallSelect');
+      select.innerHTML = '<option value="all">All Firewalls</option>' + 
+        firewalls.map(fw => `<option value="${fw.id}">${escapeHtml(fw.name)}</option>`).join('');
+      
+      if (scheduleId) {
+        // Edit mode
+        const schedule = scheduledBackups.find(s => s.id === scheduleId);
+        if (!schedule) {
+          showToast('Schedule not found', 'error');
+          return;
+        }
+        
+        title.textContent = 'Edit Scheduled Backup';
+        document.getElementById('scheduleId').value = scheduleId;
+        select.value = schedule.firewallId;
+        
+        // Set schedule preset or custom
+        const presetValue = getPresetFromCron(schedule.schedule);
+        document.getElementById('schedulePreset').value = presetValue;
+        if (presetValue === 'custom') {
+          document.getElementById('customCronField').classList.remove('hidden');
+          document.getElementById('customCron').value = schedule.schedule;
+        }
+        
+        // Set options
+        if (schedule.options) {
+          form.skipPackages.checked = schedule.options.skipPackages || false;
+          form.skipRrd.checked = schedule.options.skipRrd || false;
+          form.includeExtra.checked = schedule.options.includeExtra !== false;
+          form.encrypt.checked = schedule.options.encrypt || false;
+          if (form.backupArea) {
+            form.backupArea.value = schedule.options.backupArea || 'all';
+          }
+          if (schedule.options.encrypt) {
+            document.getElementById('schedulePasswordField').classList.remove('hidden');
+          }
+        }
+        
+        form.notes.value = schedule.notes || '';
+        form.enabled.checked = schedule.enabled;
+      } else {
+        // Add mode
+        title.textContent = 'Add Scheduled Backup';
+        form.reset();
+        document.getElementById('scheduleId').value = '';
+        document.getElementById('customCronField').classList.add('hidden');
+        document.getElementById('schedulePasswordField').classList.add('hidden');
+        form.enabled.checked = true;
+        form.includeExtra.checked = true;
+        if (form.backupArea) {
+          form.backupArea.value = 'all';  // Default: all (required for RRD data inclusion)
+        }
+      }
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    
+    function hideScheduledBackupModal() {
+      document.getElementById('scheduledBackupModal').classList.add('hidden');
+      document.getElementById('scheduledBackupModal').classList.remove('flex');
+    }
+    
+    function getPresetFromCron(cron) {
+      if (cron === 'NOW') return 'now';
+      const presets = {
+        '0 2 * * *': 'daily',
+        '0 2 * * 0': 'weekly',
+        '0 2 1 * *': 'monthly',
+        '0 */6 * * *': 'every6hours',
+        '0 */12 * * *': 'every12hours'
+      };
+      return presets[cron] || 'custom';
+    }
+    
+    function updateCustomCron() {
+      const preset = document.getElementById('schedulePreset').value;
+      const customField = document.getElementById('customCronField');
+      if (preset === 'custom') {
+        customField.classList.remove('hidden');
+      } else {
+        customField.classList.add('hidden');
+      }
+    }
+    
+    function toggleSchedulePassword() {
+      const checked = document.getElementById('scheduleEncryptCheck').checked;
+      document.getElementById('schedulePasswordField').classList.toggle('hidden', !checked);
+    }
+    
+    async function submitScheduledBackup(event) {
+      event.preventDefault();
+      const form = event.target;
+      
+      const scheduleId = form.scheduleId.value;
+      const isEdit = !!scheduleId;
+      
+      // Get schedule (preset or custom)
+      let schedule = form.schedulePreset.value;
+      if (schedule === 'now') {
+        schedule = 'NOW';
+      } else if (schedule === 'custom') {
+        schedule = form.customCron.value;
+        if (!schedule) {
+          showToast('Please enter a cron expression', 'error');
+          return;
+        }
+      } else {
+        // Map preset to cron expression
+        const presetMap = {
+          'daily': '0 2 * * *',
+          'weekly': '0 2 * * 0',
+          'monthly': '0 2 1 * *',
+          'every6hours': '0 */6 * * *',
+          'every12hours': '0 */12 * * *'
+        };
+        schedule = presetMap[schedule] || schedule;
+      }
+      
+      // Explicitly get checkbox values to ensure they're always boolean
+      // IMPORTANT: skipRrd defaults to false (include RRD data) - checkbox unchecked = include RRD
+      const skipPackages = form.skipPackages ? form.skipPackages.checked : false;
+      const skipRrd = form.skipRrd ? form.skipRrd.checked : false;  // false = include RRD (default)
+      const includeExtra = form.includeExtra ? form.includeExtra.checked !== false : true;
+      const includeSshKeys = form.includeSshKeys ? form.includeSshKeys.checked : false;
+      const encrypt = form.encrypt ? form.encrypt.checked : false;
+      
+      // Log for debugging
+      console.log('Scheduled backup form values:', {
+        skipPackages: skipPackages,
+        skipRrd: skipRrd,
+        includeExtra: includeExtra,
+        includeSshKeys: includeSshKeys,
+        encrypt: encrypt,
+        willIncludeRrd: !skipRrd
+      });
+      
+      // Always explicitly set skipRrd to ensure backend receives it
+      // skipRrd=false means RRD data WILL be included (matches pfSense backup.inc line 213)
+      const config = {
+        firewallId: form.firewallId.value,
+        schedule: schedule,
+        options: {
+          skipPackages: skipPackages,
+          skipRrd: skipRrd,  // Explicitly set (false = include RRD by default)
+          includeExtra: includeExtra,
+          includeSshKeys: includeSshKeys,
+          backupArea: form.backupArea?.value || 'all',
+          encrypt: encrypt,
+          password: encrypt ? form.password?.value : undefined
+        },
+        enabled: form.enabled.checked,
+        notes: form.notes.value
+      };
+      
+      hideScheduledBackupModal();
+      showToast(isEdit ? 'Updating schedule...' : 'Creating schedule...', 'info');
+      
+      try {
+        let result;
+        if (isEdit) {
+          result = await callServer('updateScheduledBackup', scheduleId, config);
+        } else {
+          result = await callServer('createScheduledBackup', config);
+        }
+        
+        if (result && result.success) {
+          showToast(isEdit ? 'Schedule updated' : 'Schedule created', 'success');
+          await loadScheduledBackups();
+        } else {
+          showToast(result?.error || 'Failed to save schedule', 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    function editScheduledBackup(scheduleId) {
+      showScheduledBackupModal(scheduleId);
+    }
+    
+    async function runScheduledBackupNow(scheduleId) {
+      if (!confirm('Run this backup now?')) return;
+      
+      showToast('Starting backup...', 'info');
+      try {
+        const result = await callServer('runScheduledBackupNow', scheduleId);
+        if (result && result.success) {
+          showToast('Backup started successfully', 'success');
+          await loadScheduledBackups();
+          await loadBackupHistory();
+        } else {
+          showToast(result?.error || 'Failed to start backup', 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    async function toggleScheduleEnabled(scheduleId, enabled) {
+      try {
+        const result = await callServer('updateScheduledBackup', scheduleId, { enabled });
+        if (result && result.success) {
+          showToast(enabled ? 'Schedule enabled' : 'Schedule disabled', 'success');
+          await loadScheduledBackups();
+        } else {
+          showToast(result?.error || 'Failed to update schedule', 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    async function deleteScheduledBackup(scheduleId) {
+      if (!confirm('Are you sure you want to delete this scheduled backup?')) return;
+      
+      try {
+        const result = await callServer('deleteScheduledBackup', scheduleId);
+        if (result && result.success) {
+          showToast('Schedule deleted', 'success');
+          await loadScheduledBackups();
+        } else {
+          showToast(result?.error || 'Failed to delete schedule', 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    // =========================================================================
+    // Voucher Functions
+    // =========================================================================
+    
+    let voucherSessions = [];
+    let voucherStats = {};
+    let voucherAutoRefreshInterval = null;
+    let voucherCategoryFilter = null;
+    let voucherSortColumn = null;
+    let voucherSortDirection = 'asc';
+    
+    async function loadVouchers() {
+      try {
+        showToast('Loading voucher sessions...', 'info');
+        const result = await callServer('getAllActiveVouchers', null);
+        
+        if (result) {
+          voucherSessions = result.sessions || [];
+          voucherStats = result.stats || {};
+          renderVouchers();
+          updateVoucherStats();
+          showToast(`Loaded ${voucherSessions.length} active sessions`, 'success');
+        }
+      } catch (error) {
+        showToast('Failed to load vouchers: ' + error.message, 'error');
+      }
+    }
+    
+    function renderVouchers() {
+      const tbody = document.getElementById('vouchersTable');
+      const firewallFilter = document.getElementById('voucherFirewallFilter').value;
+      const textFilter = (document.getElementById('voucherTextFilter') || {}).value || '';
+      
+      let filtered = voucherSessions;
+      if (firewallFilter) {
+        filtered = filtered.filter(v => v.firewallId === firewallFilter);
+      }
+      
+      // Apply text filter (voucher/IP/MAC)
+      if (textFilter) {
+        const filterLower = textFilter.toLowerCase();
+        filtered = filtered.filter(v => 
+          (v.username || '').toLowerCase().includes(filterLower) ||
+          (v.ip || '').toLowerCase().includes(filterLower) ||
+          (v.mac || '').toLowerCase().includes(filterLower)
+        );
+      }
+      
+      // Apply category filter
+      if (voucherCategoryFilter) {
+        filtered = filtered.filter(v => {
+          const remainingSeconds = v.remaining_seconds || 0;
+          if (voucherCategoryFilter === 'healthy') {
+            return remainingSeconds >= 259200; // > 3 days
+          } else if (voucherCategoryFilter === 'expiring') {
+            return (remainingSeconds >= 86400 && remainingSeconds < 259200) || // 1 day to 3 days
+                   (remainingSeconds >= 600 && remainingSeconds < 1800); // 10-30 min
+          } else if (voucherCategoryFilter === 'critical') {
+            return remainingSeconds < 600; // < 10 min
+          }
+          return true;
+        });
+      }
+      
+      // Apply sorting
+      if (voucherSortColumn) {
+        filtered = [...filtered].sort((a, b) => {
+          let aVal, bVal;
+          
+          switch (voucherSortColumn) {
+            case 'firewall':
+              aVal = (a.firewallName || a.firewallId || '').toLowerCase();
+              bVal = (b.firewallName || b.firewallId || '').toLowerCase();
+              break;
+            case 'ip':
+              aVal = (a.ip || '').toLowerCase();
+              bVal = (b.ip || '').toLowerCase();
+              break;
+            case 'mac':
+              aVal = (a.mac || '').toLowerCase();
+              bVal = (b.mac || '').toLowerCase();
+              break;
+            case 'username':
+              aVal = (a.username || '').toLowerCase();
+              bVal = (b.username || '').toLowerCase();
+              break;
+            case 'session_start':
+              aVal = new Date(a.session_start || 0).getTime();
+              bVal = new Date(b.session_start || 0).getTime();
+              break;
+            case 'last_activity':
+              aVal = new Date(a.last_activity || 0).getTime();
+              bVal = new Date(b.last_activity || 0).getTime();
+              break;
+            case 'remaining':
+              aVal = a.remaining_seconds || 0;
+              bVal = b.remaining_seconds || 0;
+              break;
+            default:
+              return 0;
+          }
+          
+          if (aVal < bVal) return voucherSortDirection === 'asc' ? -1 : 1;
+          if (aVal > bVal) return voucherSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+      
+      // Recalculate stats from filtered sessions
+      const filteredStats = calculateVoucherStats(filtered);
+      updateVoucherStats(filteredStats);
+      
+      // Update sort icons
+      updateSortIcons();
+      
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">No active voucher sessions found.</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = filtered.map(session => {
+        const remainingClass = getRemainingTimeClass(session.remaining_seconds);
+        const remainingBg = getRemainingTimeBg(session.remaining_seconds);
+        
+        return `
+          <tr class="hover:bg-gray-50 ${session.is_expired ? 'bg-gray-100' : ''}">
+            <td class="px-4 py-3 whitespace-nowrap text-sm">
+              <div class="text-gray-900">${escapeHtml(session.firewallName || session.firewallId)}</div>
+              <div class="text-gray-500 text-xs">${escapeHtml(session.zone || '-')}</div>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">${escapeHtml(session.ip || '-')}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600">${escapeHtml(session.mac || '-')}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${escapeHtml(session.username || '-')}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${formatDate(session.session_start)}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${formatDate(session.last_activity)}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="px-2 py-1 text-sm font-medium rounded-full ${remainingBg} ${remainingClass}">
+                ${escapeHtml(session.remaining_formatted || 'Expired')}
+              </span>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-sm">
+              <button onclick="disconnectVoucher('${session.firewallId}', '${session.session_id}', '${session.zone}')" 
+                class="text-red-600 hover:text-red-800 font-medium">
+                Disconnect
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    function calculateVoucherStats(sessions) {
+      const stats = {
+        total: sessions.length,
+        healthy: 0,
+        expiringMedium: 0,
+        expiringSoon: 0
+      };
+      
+      sessions.forEach(session => {
+        const remainingSeconds = session.remaining_seconds || 0;
+        // Healthy: > 3 days (259200 seconds)
+        // Expiring (tomorrow): 1 day to 3 days (86400 to 259200 seconds)
+        // Expiring (today-10-30 min): 600 to 1800 seconds
+        // Critical: < 10 minutes (< 600 seconds)
+        if (remainingSeconds >= 259200) {
+          stats.healthy++;
+        } else if (remainingSeconds >= 86400) {
+          stats.expiringMedium++; // Expiring tomorrow
+        } else if (remainingSeconds >= 600) {
+          stats.expiringMedium++; // Expiring today 10-30 min
+        } else {
+          stats.expiringSoon++; // Critical < 10 min
+        }
+      });
+      
+      return stats;
+    }
+    
+    function getRemainingTimeClass(seconds) {
+      if (seconds <= 0) return 'text-gray-600';
+      if (seconds < 600) return 'text-red-800';  // < 10 min
+      if (seconds < 1800) return 'text-yellow-800';  // < 30 min
+      return 'text-green-800';
+    }
+    
+    function getRemainingTimeBg(seconds) {
+      if (seconds <= 0) return 'bg-gray-100';
+      if (seconds < 600) return 'bg-red-100';  // < 10 min
+      if (seconds < 1800) return 'bg-yellow-100';  // < 30 min
+      return 'bg-green-100';
+    }
+    
+    function updateVoucherStats(stats) {
+      // Use provided stats or fall back to global voucherStats
+      stats = stats || voucherStats;
+      document.getElementById('statTotalVouchers').textContent = stats.total || 0;
+      document.getElementById('statVouchersHealthy').textContent = stats.healthy || 0;
+      document.getElementById('statVouchersWarning').textContent = stats.expiringMedium || 0;
+      document.getElementById('statVouchersCritical').textContent = stats.expiringSoon || 0;
+    }
+    
+    function filterVouchers() {
+      renderVouchers();
+    }
+    
+    function filterVouchersByCategory(category) {
+      voucherCategoryFilter = category;
+      renderVouchers();
+    }
+    
+    function sortVouchers(column) {
+      if (voucherSortColumn === column) {
+        // Toggle direction
+        voucherSortDirection = voucherSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        voucherSortColumn = column;
+        voucherSortDirection = 'asc';
+      }
+      renderVouchers();
+    }
+    
+    function updateSortIcons() {
+      // Clear all icons
+      ['firewall', 'ip', 'mac', 'username', 'session_start', 'last_activity', 'remaining'].forEach(col => {
+        const iconEl = document.getElementById(`sort-${col}-icon`);
+        if (iconEl) iconEl.innerHTML = '';
+      });
+      
+      // Set icon for active sort column
+      if (voucherSortColumn) {
+        const iconEl = document.getElementById(`sort-${voucherSortColumn}-icon`);
+        if (iconEl) {
+          const arrow = voucherSortDirection === 'asc' ? '↑' : '↓';
+          iconEl.innerHTML = arrow;
+        }
+      }
+    }
+    
+    async function disconnectVoucher(firewallId, sessionId, zone) {
+      if (!confirm('Are you sure you want to disconnect this session?')) return;
+      
+      showToast('Disconnecting session...', 'info');
+      
+      try {
+        const result = await callServer('disconnectVoucherSession', firewallId, sessionId, zone);
+        if (result && result.success) {
+          showToast('Session disconnected', 'success');
+          await loadVouchers();
+        } else {
+          showToast(result?.error || 'Failed to disconnect session', 'error');
+        }
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    // Voucher Auto-refresh
+    function setVoucherAutoRefresh(intervalMs) {
+      const interval = parseInt(intervalMs);
+      
+      // Clear existing interval
+      if (voucherAutoRefreshInterval) {
+        clearInterval(voucherAutoRefreshInterval);
+        voucherAutoRefreshInterval = null;
+      }
+      
+      // Save preference
+      localStorage.setItem('voucherAutoRefreshInterval', interval);
+      
+      if (interval > 0 && currentTab === 'vouchers') {
+        voucherAutoRefreshInterval = setInterval(() => {
+          loadVouchers();
+        }, interval);
+        showToast(`Voucher auto-refresh set to ${interval / 60000} minutes`, 'info');
+      } else if (interval === 0) {
+        showToast('Voucher auto-refresh disabled', 'info');
+      }
+    }
+    
+    function clearVoucherAutoRefresh() {
+      if (voucherAutoRefreshInterval) {
+        clearInterval(voucherAutoRefreshInterval);
+        voucherAutoRefreshInterval = null;
+      }
+    }
+    
+    function restoreVoucherAutoRefresh() {
+      const savedInterval = localStorage.getItem('voucherAutoRefreshInterval');
+      if (savedInterval && parseInt(savedInterval) > 0) {
+        const dropdown = document.getElementById('voucherAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+        
+        voucherAutoRefreshInterval = setInterval(() => {
+          loadVouchers();
+        }, parseInt(savedInterval));
+      }
+    }
+    
+    function initVoucherAutoRefresh() {
+      const savedInterval = localStorage.getItem('voucherAutoRefreshInterval');
+      if (savedInterval) {
+        const dropdown = document.getElementById('voucherAutoRefresh');
+        if (dropdown) dropdown.value = savedInterval;
+      }
+    }
+    
+    function updateVoucherFirewallSelect() {
+      const select = document.getElementById('voucherFirewallFilter');
+      if (select) {
+        select.innerHTML = '<option value="">All Firewalls</option>' + 
+          firewalls.map(fw => `<option value="${fw.id}">${escapeHtml(fw.name)}</option>`).join('');
+      }
+    }
+
+    async function backupFirewall(firewallId) {
+      showToast('Creating backup...', 'info');
+      try {
+        // Default options: include RRD data (skipRrd=false), include extra data, include packages
+        // This matches pfSense default behavior where RRD is included unless explicitly skipped
+        const defaultOptions = {
+          skipRrd: false,  // Include RRD data by default
+          skipPackages: false,  // Include packages by default
+          includeExtra: true,  // Include extra data by default
+          includeSshKeys: false,  // Don't include SSH keys by default
+          backupArea: 'all'
+        };
+        const result = await callServer('backupFirewall', firewallId, defaultOptions);
+        if (result && result.success) {
+          showToast(`Backup created: ${result.filename}`, 'success');
+          if (document.getElementById('backupsTab').classList.contains('hidden') === false) {
+            await loadBackupHistory();
+          }
+        } else {
+          showToast(result?.error || 'Backup failed', 'error');
+        }
+      } catch (error) {
+        showToast('Backup failed: ' + error.message, 'error');
+      }
+    }
+
+    async function backupAllFirewalls() {
+      if (!confirm('Create backups for all online firewalls? This may take a few minutes.')) return;
+      
+      showToast('Starting backup for all firewalls...', 'info');
+      try {
+        // Explicitly set default options to ensure RRD data is included
+        // skipRrd: false means RRD data WILL be included (matches pfSense default behavior)
+        const defaultOptions = {
+          skipRrd: false,  // Include RRD data by default
+          skipPackages: false,  // Include packages by default
+          includeExtra: true,  // Include extra data by default
+          includeSshKeys: false,  // Don't include SSH keys by default
+          backupArea: 'all'
+        };
+        const result = await callServer('backupAllFirewalls', defaultOptions);
+        if (result) {
+          showToast(`Backup complete: ${result.successCount}/${result.totalFirewalls} successful`, 
+            result.errorCount > 0 ? 'warning' : 'success');
+          await loadBackupHistory();
+        } else {
+          showToast('Backup failed', 'error');
+        }
+      } catch (error) {
+        showToast('Backup failed: ' + error.message, 'error');
+      }
+    }
+
+    // Backup Options Modal
+    function showBackupOptionsModal(firewallId) {
+      document.getElementById('backupFirewallId').value = firewallId;
+      document.getElementById('backupOptionsForm').reset();
+      document.getElementById('backupOptionsModal').classList.remove('hidden');
+      document.getElementById('backupOptionsModal').classList.add('flex');
+    }
+    
+    function hideBackupOptionsModal() {
+      document.getElementById('backupOptionsModal').classList.add('hidden');
+      document.getElementById('backupOptionsModal').classList.remove('flex');
+    }
+    
+    function toggleBackupPassword() {
+      const checked = document.getElementById('backupEncryptCheck').checked;
+      document.getElementById('backupPasswordField').classList.toggle('hidden', !checked);
+    }
+    
+    async function submitBackup(event) {
+      event.preventDefault();
+      const form = event.target;
+      const firewallId = form.firewallId.value;
+      
+      // Explicitly get checkbox values to ensure they're always boolean
+      // IMPORTANT: skipRrd defaults to false (include RRD data) - checkbox unchecked = include RRD
+      const skipPackages = form.skipPackages ? form.skipPackages.checked : false;
+      const skipRrd = form.skipRrd ? form.skipRrd.checked : false;  // false = include RRD (default)
+      const includeExtra = form.includeExtra ? form.includeExtra.checked !== false : true;
+      const includeSshKeys = form.includeSshKeys ? form.includeSshKeys.checked : false;
+      const encrypt = form.encrypt ? form.encrypt.checked : false;
+      
+      // Log for debugging
+      console.log('Backup form values:', {
+        skipPackages: skipPackages,
+        skipRrd: skipRrd,
+        includeExtra: includeExtra,
+        includeSshKeys: includeSshKeys,
+        encrypt: encrypt,
+        willIncludeRrd: !skipRrd
+      });
+      
+      // Always explicitly set skipRrd to ensure backend receives it
+      // skipRrd=false means RRD data WILL be included (matches pfSense backup.inc line 213)
+      const options = {
+        skipPackages: skipPackages,
+        skipRrd: skipRrd,  // Explicitly set (false = include RRD by default)
+        includeExtra: includeExtra,
+        includeSshKeys: includeSshKeys,
+        backupArea: form.backupArea.value || 'all',
+        encrypt: encrypt,
+        password: encrypt ? form.password.value : undefined
+      };
+      
+      hideBackupOptionsModal();
+      showToast('Creating backup...', 'info');
+      
+      try {
+        const result = await callServer('backupFirewall', firewallId, options);
+        if (result && result.success) {
+          showToast(`Backup created: ${result.filename}`, 'success');
+          if (!document.getElementById('backupsTab').classList.contains('hidden')) {
+            await loadBackupHistory();
+          }
+        } else {
+          showToast(result?.error || 'Backup failed', 'error');
+        }
+      } catch (error) {
+        showToast('Backup failed: ' + error.message, 'error');
+      }
+    }
+    
+    // Edit Binding Modal
+    function showEditBindingModal(firewallId, mac) {
+      const binding = bindings.find(b => b.firewallId === firewallId && b.mac === mac);
+      if (!binding) {
+        showToast('Binding not found', 'error');
+        return;
+      }
+      
+      document.getElementById('editBindingFirewallId').value = firewallId;
+      document.getElementById('editBindingMac').value = mac;
+      document.getElementById('editBindingMacDisplay').value = mac;
+      document.getElementById('editBindingDescription').value = binding.description || '';
+      document.getElementById('editBindingAction').value = binding.action || 'pass';
+      
+      if (binding.expiresAt) {
+        const date = new Date(binding.expiresAt);
+        const localIso = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        document.getElementById('editBindingExpires').value = localIso;
+      }
+      
+      document.getElementById('editBindingModal').classList.remove('hidden');
+      document.getElementById('editBindingModal').classList.add('flex');
+    }
+    
+    function hideEditBindingModal() {
+      document.getElementById('editBindingModal').classList.add('hidden');
+      document.getElementById('editBindingModal').classList.remove('flex');
+    }
+    
+    async function submitEditBinding(event) {
+      event.preventDefault();
+      const form = event.target;
+      
+      const data = {
+        firewallId: form.firewallId.value,
+        mac: form.mac.value,
+        description: form.description.value,
+        action: form.action.value
+      };
+      
+      if (form.expiresAt && form.expiresAt.value) {
+        data.expiresAt = new Date(form.expiresAt.value).toISOString();
+      }
+      
+      hideEditBindingModal();
+      showToast('Updating binding...', 'info');
+      
+      try {
+        const result = await callServer('updateBinding', data);
+        if (result && result.success) {
+          showToast('Binding updated', 'success');
+          await loadBindings();
+        } else {
+          showToast(result?.error || 'Update failed', 'error');
+        }
+      } catch (error) {
+        showToast('Update failed: ' + error.message, 'error');
+      }
+    }
+    
+    // Logs Filtering
+    async function loadLogsWithFilters() {
+      try {
+        const result = await callServer('getLogsFiltered', logFilters);
+        if (result && result.logs) {
+          logs = result.logs;
+          renderLogs();
+        }
+      } catch (error) {
+        showToast('Failed to load logs', 'error');
+      }
+    }
+    
+    function applyLogFilters() {
+      const startDate = document.getElementById('logStartDate')?.value;
+      const endDate = document.getElementById('logEndDate')?.value;
+      const firewall = document.getElementById('logFirewallFilter')?.value;
+      const result = document.getElementById('logResultFilter')?.value;
+      const search = document.getElementById('logSearch')?.value;
+      
+      logFilters = {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        firewall: firewall || undefined,
+        result: result || undefined,
+        search: search || undefined,
+        limit: 100
+      };
+      
+      loadLogsWithFilters();
+    }
+    
+    function clearLogFilters() {
+      if (document.getElementById('logStartDate')) document.getElementById('logStartDate').value = '';
+      if (document.getElementById('logEndDate')) document.getElementById('logEndDate').value = '';
+      if (document.getElementById('logFirewallFilter')) document.getElementById('logFirewallFilter').value = '';
+      if (document.getElementById('logResultFilter')) document.getElementById('logResultFilter').value = '';
+      if (document.getElementById('logSearch')) document.getElementById('logSearch').value = '';
+      logFilters = { limit: 100 };
+      loadLogs();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      renderFirewalls();
+      updateFirewallSelects();
+      loadStats();
+      // Initialize auto-refresh from saved preferences
+      initFirewallAutoRefresh();
+      initBindingsAutoRefresh();
+      // Initialize pagination from saved preferences
+      initFirewallPagination();
+      initBindingPagination();
+      initLogPagination();
+      initBackupPagination();
+      // Initialize voucher auto-refresh dropdown
+      initVoucherAutoRefresh();
+      // Auto-refresh system info on load
+      setTimeout(refreshSystemInfo, 1000);
+    });
+  </script>
+</body>
+</html>
