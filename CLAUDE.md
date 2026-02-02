@@ -60,24 +60,18 @@ Verified on 2026-02-02:
 
 **Fix Applied:** Backed up old queue, created fresh queue file
 
+### BUG #3: Voucher "Expiring" Filter Mismatch (FIXED)
+
+**Severity:** MEDIUM
+**File:** `gas/index.html:2676-2678`
+
+**Problem:** Client filter showed 1-3 days OR 10-30min, missing vouchers between 30min-1day.
+
+**Fix Applied:** Changed to continuous range `remainingSeconds >= 600 && remainingSeconds < 259200` (10 min to 3 days)
+
 ---
 
 ## BUGS FOUND (NOT YET FIXED)
-
-### BUG #3: Voucher "Expiring" Filter Mismatch
-
-**Severity:** MEDIUM
-**File:** `gas/index.html:2676-2678` vs `gas/VoucherService.gs:340-348`
-
-Server counts 10min to 3days as "Expiring", client filter only shows 1-3 days OR 10-30min (missing 30min-1day).
-
-**Fix Required:**
-```javascript
-// In index.html line 2676-2678, change to:
-if (voucherCategoryFilter === 'expiring') {
-  return remainingSeconds >= 600 && remainingSeconds < 259200; // 10 min to 3 days
-}
-```
 
 ### BUG #4: Distributed Lock Race Condition
 
@@ -342,7 +336,7 @@ grep '"event_type":"alert"' /var/log/suricata/suricata_*/eve.json | tail -20
 
 - [x] Add macbind_sync cron job
 - [x] Clear stale queue
-- [ ] Fix voucher filter mismatch (index.html:2676)
+- [x] Fix voucher filter mismatch (index.html:2676)
 - [ ] Fix distributed lock race condition (Config.gs:204)
 - [ ] Add JSON parse error handling (macbind_api.php)
 - [ ] Fix timezone in expiry comparisons (SheetsDb.gs)
