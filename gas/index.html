@@ -2674,8 +2674,7 @@
           if (voucherCategoryFilter === 'healthy') {
             return remainingSeconds >= 259200; // > 3 days
           } else if (voucherCategoryFilter === 'expiring') {
-            return (remainingSeconds >= 86400 && remainingSeconds < 259200) || // 1 day to 3 days
-                   (remainingSeconds >= 600 && remainingSeconds < 1800); // 10-30 min
+            return remainingSeconds >= 600 && remainingSeconds < 259200; // 10 min to 3 days
           } else if (voucherCategoryFilter === 'critical') {
             return remainingSeconds < 600; // < 10 min
           }
