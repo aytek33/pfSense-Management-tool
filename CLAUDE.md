@@ -23,6 +23,47 @@ A **captive portal MAC binding management system** for multi-firewall pfSense de
 
 ---
 
+## COMMON MISTAKES TO AVOID
+
+### DO NOT assume these features exist:
+
+| Wrong Assumption | Reality |
+|------------------|---------|
+| "Total Devices" widget | **Does NOT exist** - Use "Total Bindings" instead |
+| "Clean" status widget | **Does NOT exist** - No health/security classification |
+| "Warning" status widget | **Does NOT exist** - No warning category |
+| "ALERTS" tab | **Does NOT exist** - Suricata data on pfSense, no API |
+| "Policies" tab | **Does NOT exist** - Only pass/block per binding |
+| "Settings" tab | **Does NOT exist** - Edit Google Sheets Config tab |
+| Real-time dashboard | **Does NOT exist** - Manual refresh or 5-min triggers |
+
+### DO NOT confuse these terms:
+
+| Term Used | Actual Meaning |
+|-----------|----------------|
+| "Devices" | MAC bindings (not network devices) |
+| "Sessions" | Voucher sessions in Vouchers tab |
+| "Alerts" | Activity logs (not security alerts) |
+| "Policies" | Pass/block action on binding (not firewall rules) |
+
+### DO NOT try to implement:
+
+| Feature | Why Not |
+|---------|---------|
+| Direct pfSense rule editing | Use pfSense WebGUI instead |
+| Suricata alert viewing | Need to add `?action=alerts` API first |
+| User role management | Not in scope - use Google account permissions |
+| Real-time updates | GAS has 6-minute execution limit |
+
+### BEFORE making changes, verify:
+
+1. **Read the Feature Matrix** - Check if feature exists
+2. **Check API endpoints** - Only use implemented endpoints
+3. **Test on pfSense** - Use curl commands in Debugging section
+4. **Check pfSense version** - Use compatibility matrix
+
+---
+
 ## FEATURE MATRIX
 
 ### Implemented Features
