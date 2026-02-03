@@ -71,6 +71,30 @@ function error_response(string $message, int $status = 400): void {
 }
 
 /**
+ * Safe JSON decode with explicit null/error handling (BUG #5 fix)
+ * @param string|null $json JSON string to decode
+ * @param mixed $default Default value if decode fails
+ * @param bool $logError Whether to log decode errors
+ * @return mixed Decoded data or default value
+ */
+function safe_json_decode(?string $json, $default = [], bool $logError = true) {
+    if ($json === null || $json === '' || $json === false) {
+        return $default;
+    }
+
+    $data = json_decode($json, true);
+
+    if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+        if ($logError) {
+            log_api('WARNING', 'JSON decode failed: ' . json_last_error_msg());
+        }
+        return $default;
+    }
+
+    return $data ?? $default;
+}
+
+/**
  * Log API request/response
  */
 function log_api(string $level, string $message): void {
@@ -533,7 +557,7 @@ function find_expiry_in_active_db(string $mac_lower, string $zone_name): ?string
         return null;
     }
 
-    $active_data = json_decode($active_json, true);
+    $active_data = safe_json_decode($active_json, [], false);
     if (!isset($active_data['bindings']) || !is_array($active_data['bindings'])) {
         return null;
     }
@@ -729,12 +753,12 @@ function action_add(): void {
         error_response('Captive portal zone not found: ' . $zone, 404);
     }
 
-    // Add to active DB
+    // Add to active DB (BUG #5 fix: use safe_json_decode)
     $active_db = [];
     if (file_exists(ACTIVE_DB_FILE)) {
         $json = @file_get_contents(ACTIVE_DB_FILE);
         if ($json) {
-            $active_db = json_decode($json, true);
+            $active_db = safe_json_decode($json, []);
         }
     }
 
@@ -1373,12 +1397,12 @@ function action_cleanup_expired(): void {
     $firewall_rules_flushed = 0;
     $config_changed = false;
 
-    // Load active DB to check expiration times
+    // Load active DB to check expiration times (BUG #5 fix)
     $active_db = [];
     if (file_exists(ACTIVE_DB_FILE)) {
         $json = @file_get_contents(ACTIVE_DB_FILE);
         if ($json) {
-            $active_db = json_decode($json, true);
+            $active_db = safe_json_decode($json, []);
         }
     }
 

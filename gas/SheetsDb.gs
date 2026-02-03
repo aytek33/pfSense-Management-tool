@@ -454,9 +454,12 @@ const SheetsDb = {
       });
 
       // Remove bindings that no longer exist on pfSense OR are expired locally
+      // BUG #6 fix: Use UTC timestamps for consistent timezone comparison
+      const nowUtc = Date.now();
       localBindings.forEach(local => {
         const mac = normalizeMac(local.mac);
-        const isExpired = local.expiresAt && new Date(local.expiresAt) < new Date();
+        const expiryTime = local.expiresAt ? new Date(local.expiresAt).getTime() : null;
+        const isExpired = expiryTime !== null && expiryTime < nowUtc;
         const notOnRemote = !remoteMacs.has(mac);
 
         if (notOnRemote || isExpired) {

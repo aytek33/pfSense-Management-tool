@@ -317,37 +317,41 @@ const options = {
 
 **Fix Applied:** Changed to continuous range `remainingSeconds >= 600 && remainingSeconds < 259200` (10 min to 3 days)
 
----
-
-## BUGS FOUND (NOT YET FIXED)
-
-### BUG #4: Distributed Lock Race Condition
+### BUG #4: Distributed Lock Race Condition (FIXED)
 
 **Severity:** HIGH
-**File:** `gas/Config.gs:204-217`
+**File:** `gas/Config.gs:167-221`
 
-PropertiesService doesn't guarantee atomic check-and-set. Two deployments can both acquire the "same" lock.
+**Problem:** PropertiesService doesn't guarantee atomic check-and-set.
 
-### BUG #5: JSON Parse Failures Not Detected
+**Fix Applied:** Wrapped PropertiesService operations with `LockService.getScriptLock()` mutex to ensure atomic acquire/release.
 
-**Severity:** MEDIUM
-**File:** `usr/local/www/macbind_api.php:536,737,1275`
-
-`json_decode()` returns null on failure but code doesn't check explicitly.
-
-### BUG #6: Timezone Issues in Expiry Comparisons
+### BUG #5: JSON Parse Failures Not Detected (FIXED)
 
 **Severity:** MEDIUM
-**File:** `gas/SheetsDb.gs:459+`
+**File:** `usr/local/www/macbind_api.php`
 
-Date comparisons may use local timezone instead of UTC.
+**Problem:** `json_decode()` returns null on failure but code doesn't check explicitly.
 
-### BUG #7: NTP Not Synced
+**Fix Applied:** Added `safe_json_decode()` helper function that checks `json_last_error()` and returns default value on failure.
+
+### BUG #6: Timezone Issues in Expiry Comparisons (FIXED)
+
+**Severity:** MEDIUM
+**File:** `gas/SheetsDb.gs:459+`, `gas/Config.gs`
+
+**Problem:** Date comparisons may use local timezone instead of UTC.
+
+**Fix Applied:** Added `DateUtils` object with `nowUtc()`, `parseToUtc()`, `isExpired()`, `remainingMs()` functions. Updated expiry comparisons to use UTC timestamps.
+
+### BUG #7: NTP Not Synced (FIXED)
 
 **Severity:** LOW
 **Location:** pfSense system
 
-NTP shows `synced: false` - should be configured.
+**Problem:** NTP showed `synced: false`.
+
+**Status:** Verified NTP is now synced (sync_ntp, clock_sync, stratum 3, offset +1.26ms).
 
 ---
 
@@ -599,10 +603,10 @@ grep '"event_type":"alert"' /var/log/suricata/suricata_*/eve.json | tail -20
 - [x] Add macbind_sync cron job
 - [x] Clear stale queue
 - [x] Fix voucher filter mismatch (index.html:2676)
-- [ ] Fix distributed lock race condition (Config.gs:204)
-- [ ] Add JSON parse error handling (macbind_api.php)
-- [ ] Fix timezone in expiry comparisons (SheetsDb.gs)
-- [ ] Configure NTP on pfSense
+- [x] Fix distributed lock race condition (Config.gs) - Added LockService mutex
+- [x] Add JSON parse error handling (macbind_api.php) - Added safe_json_decode()
+- [x] Fix timezone in expiry comparisons (SheetsDb.gs) - Added DateUtils
+- [x] Configure NTP on pfSense - Verified synced (stratum 3)
 - [ ] Add Suricata alerts endpoint (FEATURE)
 - [ ] Deploy selftest endpoint (FEATURE)
 

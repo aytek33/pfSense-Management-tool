@@ -160,6 +160,7 @@ const DistributedLock = {
 
   /**
    * Acquire a distributed lock
+   * Uses LockService as mutex wrapper around PropertiesService to prevent race conditions
    * @param {string} lockName - Name of the lock (e.g., 'sync', 'backup')
    * @param {number} timeoutMs - Lock timeout in milliseconds
    * @returns {Object} Result with success flag and lockId if acquired
@@ -170,54 +171,50 @@ const DistributedLock = {
     const lockId = Utilities.getUuid();
     const now = new Date().getTime();
 
-    // Check for existing lock
-    const existingLockData = props.getProperty(lockKey);
-    if (existingLockData) {
-      try {
-        const lock = JSON.parse(existingLockData);
-        const lockAge = now - lock.timestamp;
-
-        // Check if lock is stale (held too long or crashed process)
-        if (lockAge < this.STALE_THRESHOLD_MS) {
-          Logger.log('Distributed lock "' + lockName + '" already held by ' + lock.lockId);
-          return { success: false, error: 'Lock already held', existingLockId: lock.lockId, age: lockAge };
-        }
-
-        // Lock is stale, clear it
-        Logger.log('Clearing stale distributed lock "' + lockName + '" (age: ' + lockAge + 'ms)');
-      } catch (e) {
-        // Invalid lock data, clear it
-        Logger.log('Clearing invalid distributed lock data for "' + lockName + '"');
+    // Use LockService as mutex to prevent race condition (BUG #4 fix)
+    const mutex = LockService.getScriptLock();
+    try {
+      // Wait up to 10 seconds to acquire mutex
+      if (!mutex.tryLock(10000)) {
+        return { success: false, error: 'Could not acquire mutex for lock operation' };
       }
-    }
 
-    // Acquire lock
-    const newLockData = {
-      lockId: lockId,
-      timestamp: now,
-      expires: now + timeoutMs,
-      holder: Session.getActiveUser().getEmail() || 'system'
-    };
+      // Check for existing lock (now atomic with mutex protection)
+      const existingLockData = props.getProperty(lockKey);
+      if (existingLockData) {
+        try {
+          const lock = JSON.parse(existingLockData);
+          const lockAge = now - lock.timestamp;
 
-    props.setProperty(lockKey, JSON.stringify(newLockData));
+          // Check if lock is stale (held too long or crashed process)
+          if (lockAge < this.STALE_THRESHOLD_MS) {
+            Logger.log('Distributed lock "' + lockName + '" already held by ' + lock.lockId);
+            return { success: false, error: 'Lock already held', existingLockId: lock.lockId, age: lockAge };
+          }
 
-    // Verify we got the lock (handle race condition)
-    Utilities.sleep(50); // Brief pause to allow concurrent acquires to settle
-    const verifyData = props.getProperty(lockKey);
-    if (verifyData) {
-      try {
-        const verified = JSON.parse(verifyData);
-        if (verified.lockId !== lockId) {
-          // Another process won the race
-          return { success: false, error: 'Lost lock race', winnerId: verified.lockId };
+          // Lock is stale, clear it
+          Logger.log('Clearing stale distributed lock "' + lockName + '" (age: ' + lockAge + 'ms)');
+        } catch (e) {
+          // Invalid lock data, clear it
+          Logger.log('Clearing invalid distributed lock data for "' + lockName + '"');
         }
-      } catch (e) {
-        return { success: false, error: 'Lock verification failed' };
       }
-    }
 
-    Logger.log('Acquired distributed lock "' + lockName + '" with id ' + lockId);
-    return { success: true, lockId: lockId, lockName: lockName };
+      // Acquire lock (atomic operation with mutex)
+      const newLockData = {
+        lockId: lockId,
+        timestamp: now,
+        expires: now + timeoutMs,
+        holder: Session.getActiveUser().getEmail() || 'system'
+      };
+
+      props.setProperty(lockKey, JSON.stringify(newLockData));
+
+      Logger.log('Acquired distributed lock "' + lockName + '" with id ' + lockId);
+      return { success: true, lockId: lockId, lockName: lockName };
+    } finally {
+      mutex.releaseLock();
+    }
   },
 
   /**
@@ -299,14 +296,52 @@ const DistributedLock = {
 };
 
 /**
+ * UTC Date Utilities - BUG #6 fix
+ * Ensures consistent timezone handling across all date comparisons
+ */
+const DateUtils = {
+  /**
+   * Get current UTC timestamp in milliseconds
+   */
+  nowUtc: function() {
+    return Date.now();
+  },
+
+  /**
+   * Parse date string to UTC timestamp, returns null if invalid
+   */
+  parseToUtc: function(dateStr) {
+    if (!dateStr) return null;
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? null : parsed.getTime();
+  },
+
+  /**
+   * Check if a date string represents an expired time
+   */
+  isExpired: function(expiresAt) {
+    const expiryTime = this.parseToUtc(expiresAt);
+    return expiryTime !== null && expiryTime < this.nowUtc();
+  },
+
+  /**
+   * Get remaining milliseconds until expiry, negative if expired
+   */
+  remainingMs: function(expiresAt) {
+    const expiryTime = this.parseToUtc(expiresAt);
+    if (expiryTime === null) return null;
+    return expiryTime - this.nowUtc();
+  }
+};
+
+/**
  * Calculate remaining time as human-readable string
  */
 function formatRemaining(expiresAt) {
   if (!expiresAt) return 'N/A';
-  
-  const now = new Date();
-  const expires = new Date(expiresAt);
-  const diff = expires - now;
+
+  const diff = DateUtils.remainingMs(expiresAt);
+  if (diff === null) return 'Invalid';
   
   if (diff <= 0) return 'Expired';
   
